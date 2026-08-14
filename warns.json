@@ -1,0 +1,12 @@
+{
+    "1067440028344660009": [
+        {
+            "category": "Language",
+            "severity": "Moderate warn",
+            "reason": "test",
+            "moderator": "777227138218328085",
+            "expires_at": 1788267054.723195,
+            "expiry_text": "expires in 25 days"
+        }
+    ]
+}
