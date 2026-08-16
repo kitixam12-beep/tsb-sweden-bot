@@ -913,6 +913,14 @@ async def leaderboard(ctx):
     except:
         pass
 
+    # Create the embed with a title and image
+    embed = discord.Embed(
+        title="TSBSWE Top 10",
+        color=0xFFD700  # Optional gold color for the side border
+    )
+    # Your image link is added here!
+    embed.set_image(url="https://cdn.discordapp.com/attachments/1099395424026112070/1538551771478229122/content.png?ex=6a83177f&is=6a81c5ff&hm=f7d948b1a3f3241bf1ba001d7d011233655066307dd52db6d19e013f15e17935&")
+
     text = (
         "### ┌「 Leaderboard 」┐\n"
         "↳ ✦ **`[ Top 1. ]`** - <@1450925960093503544> — 2 high strong\n"
@@ -927,5 +935,7 @@ async def leaderboard(ctx):
         "↳ ✦ **`[ Top 10. ]`** - 「 VACANT 」\n"
         "└───────────────────────┘"
     )
-    await ctx.send(text)
+    
+    # Send both the embed (with the image and title) and the text list together
+    await ctx.send(embed=embed, content=text)
 bot.run(os.getenv("DISCORD_TOKEN"))
