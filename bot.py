@@ -905,8 +905,14 @@ async def send(
             f"❌ Failed to send message: {e}", ephemeral=True
         )
 
-@bot.tree.command(name="leaderboard", description="Displays the official TSBSWE leaderboard")
-async def leaderboard(interaction: discord.Interaction):
+@bot.command(name="leaderboard")
+async def leaderboard(ctx):
+    # Optional: Delete the user's "!leaderboard" message so only the clean bot message stays
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+
     text = (
         "### ┌「 Leaderboard 」┐\n"
         "↳ ✦ **`[ Top 1. ]`** - <@1450925960093503544>\n"
@@ -921,5 +927,5 @@ async def leaderboard(interaction: discord.Interaction):
         "↳ ✦ **`[ Top 10. ]`** - 「 VACANT 」\n"
         "└───────────────────────┘"
     )
-    await interaction.response.send_message(text)
+    await ctx.send(text)
 bot.run(os.getenv("DISCORD_TOKEN"))
