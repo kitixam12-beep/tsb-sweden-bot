@@ -905,9 +905,9 @@ async def send(
             f"❌ Failed to send message: {e}", ephemeral=True
         )
 
-@bot.command(name="leaderboard")
+@bot.command(name="Tsbswelb")
 async def leaderboard(ctx):
-    # Optional: Delete the user's "!leaderboard" message so only the clean bot message stays
+    # Optional: Delete the user's command message so only the clean bot message stays
     try:
         await ctx.message.delete()
     except:
