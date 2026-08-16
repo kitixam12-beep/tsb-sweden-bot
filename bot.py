@@ -927,6 +927,65 @@ async def leaderboard(ctx):
         "↳ ✦ **`[ Top 10. ]`** - 「 VACANT 」\n"
         "└───────────────────────┘"
     )
-    
+    @bot.tree.command(name="giverank", description="Give or update a member's rank and stage role")
+@app_commands.choices(action=[
+    app_commands.Choice(name="Rank", value="rank"),
+    app_commands.Choice(name="Unrank", value="unrank"),
+    app_commands.Choice(name="Rerank (remove old, add new)", value="rerank")
+])
+@app_commands.choices(stage=[
+    app_commands.Choice(name="prog1_low", value="prog1_low"),
+    app_commands.Choice(name="prog1_mid", value="prog1_mid"),
+    app_commands.Choice(name="prog1_high", value="prog1_high"),
+    app_commands.Choice(name="prog2_weak", value="prog2_weak"),
+    app_commands.Choice(name="prog2_stable", value="prog2_stable"),
+    app_commands.Choice(name="prog2_strong", value="prog2_strong")
+])
+async def giverank(interaction: discord.Interaction, member: discord.Member, action: str, stage: str = None):
+    # Dictionary mapping stage choices to actual Discord Role names (you can change these names to match your server roles exactly)
+    stage_role_names = {
+        "prog1_low": "Prog 1: Low",
+        "prog1_mid": "Prog 1: Mid",
+        "prog1_high": "Prog 1: High",
+        "prog2_weak": "Prog 2: Weak",
+        "prog2_stable": "Prog 2: Stable",
+        "prog2_strong": "Prog 2: Strong"
+    }
+
+    try:
+        if action == "unrank":
+            # Remove all possible stage roles from the member
+            roles_to_remove = [discord.utils.get(interaction.guild.roles, name=r_name) for r_name in stage_role_names.values()]
+            roles_to_remove = [r for r in roles_to_remove if r is not None]
+            await member.remove_roles(*roles_to_remove)
+            await interaction.response.send_message(f"Successfully unranked {member.mention}.", ephemeral=True)
+            return
+
+        if not stage:
+            await interaction.response.send_message("Please select a stage for ranking or reranking.", ephemeral=True)
+            return
+
+        target_role_name = stage_role_names.get(stage)
+        target_role = discord.utils.get(interaction.guild.roles, name=target_role_name)
+
+        if not target_role:
+            await interaction.response.send_message(f"Role **{target_role_name}** could not be found in this server. Please create it first!", ephemeral=True)
+            return
+
+        if action == "rerank":
+            # Remove all other stage roles first, then add the new one
+            roles_to_remove = [discord.utils.get(interaction.guild.roles, name=r_name) for r_name in stage_role_names.values()]
+            roles_to_remove = [r for r in roles_to_remove if r is not None]
+            await member.remove_roles(*roles_to_remove)
+            await member.add_roles(target_role)
+            await interaction.response.send_message(f"Successfully reranked {member.mention} to **{target_role.name}**.", ephemeral=True)
+        
+        elif action == "rank":
+            # Just add the role normally
+            await member.add_roles(target_role)
+            await interaction.response.send_message(f"Successfully gave **{target_role.name}** to {member.mention}.", ephemeral=True)
+
+    except Exception as e:
+        await interaction.response.send_message(f"Failed to update rank: {e}", ephemeral=True)
     await ctx.send(text)
 bot.run(os.getenv("DISCORD_TOKEN"))
