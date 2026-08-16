@@ -926,8 +926,7 @@ async def leaderboard(ctx):
         "↳ ✦ **`[ Top 9. ]`** - 「 VACANT 」\n"
         "↳ ✦ **`[ Top 10. ]`** - 「 VACANT 」\n"
         "└───────────────────────┘"
-    )
-    @bot.tree.command(name="giverank", description="Give or update a member's rank and stage role")
+@bot.tree.command(name="giverank", description="Give or update a member's rank and stage role")
 @app_commands.choices(action=[
     app_commands.Choice(name="Rank", value="rank"),
     app_commands.Choice(name="Unrank", value="unrank"),
@@ -942,7 +941,6 @@ async def leaderboard(ctx):
     app_commands.Choice(name="prog2_strong", value="prog2_strong")
 ])
 async def giverank(interaction: discord.Interaction, member: discord.Member, action: str, stage: str = None):
-    # Dictionary mapping stage choices to actual Discord Role names (you can change these names to match your server roles exactly)
     stage_role_names = {
         "prog1_low": "Prog 1: Low",
         "prog1_mid": "Prog 1: Mid",
@@ -954,7 +952,6 @@ async def giverank(interaction: discord.Interaction, member: discord.Member, act
 
     try:
         if action == "unrank":
-            # Remove all possible stage roles from the member
             roles_to_remove = [discord.utils.get(interaction.guild.roles, name=r_name) for r_name in stage_role_names.values()]
             roles_to_remove = [r for r in roles_to_remove if r is not None]
             await member.remove_roles(*roles_to_remove)
@@ -973,7 +970,6 @@ async def giverank(interaction: discord.Interaction, member: discord.Member, act
             return
 
         if action == "rerank":
-            # Remove all other stage roles first, then add the new one
             roles_to_remove = [discord.utils.get(interaction.guild.roles, name=r_name) for r_name in stage_role_names.values()]
             roles_to_remove = [r for r in roles_to_remove if r is not None]
             await member.remove_roles(*roles_to_remove)
@@ -981,11 +977,9 @@ async def giverank(interaction: discord.Interaction, member: discord.Member, act
             await interaction.response.send_message(f"Successfully reranked {member.mention} to **{target_role.name}**.", ephemeral=True)
         
         elif action == "rank":
-            # Just add the role normally
             await member.add_roles(target_role)
             await interaction.response.send_message(f"Successfully gave **{target_role.name}** to {member.mention}.", ephemeral=True)
 
     except Exception as e:
-        await interaction.response.send_message(f"Failed to update rank: {e}", ephemeral=True)
-    await ctx.send(text)
+        await interaction.response.send_message(f"Failed to update rank: {e}", ephemeral=True)    
 bot.run(os.getenv("DISCORD_TOKEN"))
