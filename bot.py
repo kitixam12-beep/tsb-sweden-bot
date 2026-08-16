@@ -750,5 +750,4 @@ async def send(interaction: discord.Interaction, channel: discord.TextChannel, m
     except Exception as e:
         await interaction.response.send_message(f"❌ Failed to send message: {e}", ephemeral=True)
 
-TOKEN = os.getenv("DISCORD_TOKEN")
-bot.run(TOKEN)
+bot.run(os.getenv("DISCORD_TOKEN"))
