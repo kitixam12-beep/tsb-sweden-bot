@@ -937,6 +937,12 @@ async def leaderboard(ctx):
     app_commands.Choice(name="Rerank (remove old, add new)", value="rerank")
 ])
 @app_commands.choices(stage=[
+    app_commands.Choice(name="Stage 0", value="stage_0"),
+    app_commands.Choice(name="Stage 1", value="stage_1"),
+    app_commands.Choice(name="Stage 2", value="stage_2"),
+    app_commands.Choice(name="Stage 3", value="stage_3"),
+    app_commands.Choice(name="Stage 4", value="stage_4"),
+    app_commands.Choice(name="Stage 5", value="stage_5"),
     app_commands.Choice(name="prog1_low", value="prog1_low"),
     app_commands.Choice(name="prog1_mid", value="prog1_mid"),
     app_commands.Choice(name="prog1_high", value="prog1_high"),
@@ -946,6 +952,12 @@ async def leaderboard(ctx):
 ])
 async def giverank(interaction: discord.Interaction, member: discord.Member, action: str, stage: str = None):
     stage_role_names = {
+        "stage_0": "Stage 0",
+        "stage_1": "Stage 1",
+        "stage_2": "Stage 2",
+        "stage_3": "Stage 3",
+        "stage_4": "Stage 4",
+        "stage_5": "Stage 5",
         "prog1_low": "Prog 1: Low",
         "prog1_mid": "Prog 1: Mid",
         "prog1_high": "Prog 1: High",
