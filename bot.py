@@ -926,6 +926,31 @@ async def leaderboard(ctx):
         "↳ ✦ **`[ Top 9. ]`** - 「 VACANT 」\n"
         "↳ ✦ **`[ Top 10. ]`** - 「 VACANT 」\n"
         "└───────────────────────┘"
+@bot.command(name="Tsbswelb")
+async def leaderboard(ctx):
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+
+    text = (
+        "### ┌「 Leaderboard 」┐\n"
+        "↳ ✦ **`[ Top 1. ]`** - <@1450925960093503544> — 2 high strong\n"
+        "↳ ✦ **`[ Top 2. ]`** - <@1198641113385410584> — 2 high strong\n"
+        "↳ ✦ **`[ Top 3. ]`** - <@777227138218328085> — 2 high strong\n"
+        "↳ ✦ **`[ Top 4. ]`** - <@954479020811091979> — 2 high strong\n"
+        "↳ ✦ **`[ Top 5. ]`** - <@1358472975015477290> — 2 high stable\n"
+        "↳ ✦ **`[ Top 6. ]`** - <@1332851353311121600> — 2 high weak\n"
+        "↳ ✦ **`[ Top 7. ]`** - <@1067440028344660009> — 2 mid strong\n"
+        "↳ ✦ **`[ Top 8. ]`** - <@1056684144740012094> — 2 mid strong\n"
+        "↳ ✦ **`[ Top 9. ]`** - 「 VACANT 」\n"
+        "↳ ✦ **`[ Top 10. ]`** - 「 VACANT 」\n"
+        "└───────────────────────┘"
+    )
+    
+    await ctx.send(text)
+
+
 @bot.tree.command(name="giverank", description="Give or update a member's rank and stage role")
 @app_commands.choices(action=[
     app_commands.Choice(name="Rank", value="rank"),
