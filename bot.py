@@ -905,7 +905,7 @@ async def send(
             f"❌ Failed to send message: {e}", ephemeral=True
         )
 
-  @bot.tree.command(name="leaderboard", description="Displays the official TSBSWE leaderboard")
+@bot.tree.command(name="leaderboard", description="Displays the official TSBSWE leaderboard")
 async def leaderboard(interaction: discord.Interaction):
     if not has_custom_role_or_admin(interaction):
         await interaction.response.send_message("❌ You do not have permission.", ephemeral=True)
