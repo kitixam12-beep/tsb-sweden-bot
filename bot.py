@@ -964,17 +964,15 @@ async def giverank(
     extra_low_app: bool = False,
     extra_deflated: bool = False
 ):
-    # Dina exakta roll-ID:n mappade här
     role_id_mapping = {
-        "prog1_low": 1538547865712992307,
+        "prog1_low": 1538548021531381811,
         "prog1_mid": 1538547918947225660,
-        "prog1_high": 1538548021531381811,
-        "prog2_weak": 1538548079798788156,
+        "prog1_high": 1538547865712992307,
+        "prog2_weak": 1538548171611836516,
         "prog2_stable": 1538548125965357107,
-        "prog2_strong": 1538548171611836516
+        "prog2_strong": 1538548079798788156
     }
 
-    # Om du har ID:n för dina Stage-roller kan du lägga till dem här också, annars hittar den dem via namn:
     stage_name_mapping = {
         "Stage 0": "Stage 0",
         "Stage 1": "Stage 1",
@@ -985,7 +983,6 @@ async def giverank(
     }
 
     try:
-        # Samla ihop alla ID-nycklar för rensning vid unrank/rerank
         all_role_ids = list(role_id_mapping.values())
 
         if action == "unrank":
@@ -995,7 +992,6 @@ async def giverank(
                 if r and r in user.roles:
                     roles_to_remove.append(r)
             
-            # Kolla även stage-roller för unrank
             for sname in stage_name_mapping.values():
                 r = discord.utils.get(interaction.guild.roles, name=sname)
                 if r and r in user.roles:
@@ -1012,13 +1008,11 @@ async def giverank(
 
         roles_to_apply = []
         
-        # Hämta stage om det är valt
         if stage and stage in stage_name_mapping:
             r = discord.utils.get(interaction.guild.roles, name=stage_name_mapping[stage])
             if r:
                 roles_to_apply.append(r)
 
-        # Hämta toggles via ID:n
         toggles = {
             "prog1_low": prog1_low, "prog1_mid": prog1_mid, "prog1_high": prog1_high,
             "prog2_weak": prog2_weak, "prog2_stable": prog2_stable, "prog2_strong": prog2_strong
