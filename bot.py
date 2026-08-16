@@ -984,13 +984,19 @@ async def giverank(
     all_role_keys = list(role_mapping.keys())
 
     try:
+        # 1. UNRANK: Tar bort alla rank-roller som användaren har
         if action == "unrank":
-            roles_to_remove = [discord.utils.get(interaction.guild.roles, name=role_mapping[k]) for k in all_role_keys]
-            roles_to_remove = [r for r in roles_to_remove if r is not None]
-            await user.remove_roles(*roles_to_remove)
-            await interaction.response.send_message(f"Successfully unranked {user.mention}.", ephemeral=True)
+            user_rank_roles = [r for r in user.roles if r.name in role_mapping.values()]
+            if not user_rank_roles:
+                await interaction.response.send_message(f"{user.mention} har inga rank-roller att ta bort.", ephemeral=True)
+                return
+            
+            await user.remove_roles(*user_rank_roles)
+            removed_names = ", ".join([r.name for r in user_rank_roles])
+            await interaction.response.send_message(f"{user.mention} har tagits bort från: **{removed_names}**.", ephemeral=True)
             return
 
+        # Samla ihop alla roller som har valts i kommandot
         roles_to_apply = []
         if stage and stage in role_mapping:
             r = discord.utils.get(interaction.guild.roles, name=role_mapping[stage])
@@ -1010,22 +1016,27 @@ async def giverank(
                     roles_to_apply.append(r)
 
         if not roles_to_apply:
-            await interaction.response.send_message("Please select at least one stage, progression, or extra role to apply.", ephemeral=True)
+            await interaction.response.send_message("Välj minst en roll att lägga till!", ephemeral=True)
             return
 
+        role_names_str = " ".join([r.name for r in roles_to_apply])
+
+        # 2. RERANK: Rensar ALLA gamla rank-roller och sätter dit de nya
         if action == "rerank":
             all_existing_roles = [discord.utils.get(interaction.guild.roles, name=role_mapping[k]) for k in all_role_keys]
-            all_existing_roles = [r for r in all_existing_roles if r is not None]
-            await user.remove_roles(*all_existing_roles)
+            all_existing_roles = [r for r in all_existing_roles if r is not None and r in user.roles]
+            
+            if all_existing_roles:
+                await user.remove_roles(*all_existing_roles)
+            
             await user.add_roles(*roles_to_apply)
-            role_names_str = ", ".join([r.name for r in roles_to_apply])
-            await interaction.response.send_message(f"Successfully reranked {user.mention} with roles: **{role_names_str}**.", ephemeral=True)
+            await interaction.response.send_message(f"{user.mention} has been ranked {role_names_str}.", ephemeral=True)
 
+        # 3. RANK: Lägger till rollerna utan att röra eventuella andra befintliga rank-roller
         elif action == "rank":
             await user.add_roles(*roles_to_apply)
-            role_names_str = ", ".join([r.name for r in roles_to_apply])
-            await interaction.response.send_message(f"Successfully gave roles to {user.mention}: **{role_names_str}**.", ephemeral=True)
+            await interaction.response.send_message(f"{user.mention} has been ranked {role_names_str}.", ephemeral=True)
 
     except Exception as e:
-        await interaction.response.send_message(f"Failed to update rank: {e}", ephemeral=True)    
+        await interaction.response.send_message(f"Kunde inte uppdatera roller: {e}", ephemeral=True)    
 bot.run(os.getenv("DISCORD_TOKEN"))
