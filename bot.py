@@ -912,6 +912,12 @@ async def leaderboard(ctx):
     except:
         pass
 
+    embed = discord.Embed(
+        title="TSBSWE Top 10",
+        color=0xFFD700
+    )
+    embed.set_image(url="https://cdn.discordapp.com/attachments/1099395424026112070/153855171478229122/content.png?ex=6a83177f&is=6a8315ff&hm=f7d942e61df17336b110ba2d61d15bf0a74797171d9d480d195c643b95764d2d&")
+
     text = (
         "### ┌「 Leaderboard 」┐\n"
         "↳ ✦ **`[ Top 1. ]`** - <@1450925960093503544> — 2 high strong\n"
@@ -927,7 +933,7 @@ async def leaderboard(ctx):
         "└───────────────────────┘"
     )
     
-    await ctx.send(text)
+    await ctx.send(embed=embed, content=text)
 
 
 @bot.tree.command(name="giverank", description="Give or remove rank roles (stage, progression, extras) to a user")
@@ -958,7 +964,6 @@ async def giverank(
     extra_low_app: bool = False,
     extra_deflated: bool = False
 ):
-    # Mapping inputs to your actual Discord role names
     role_mapping = {
         "Stage 0": "Stage 0",
         "Stage 1": "Stage 1",
@@ -986,7 +991,6 @@ async def giverank(
             await interaction.response.send_message(f"Successfully unranked {user.mention}.", ephemeral=True)
             return
 
-        # Gather all roles selected true or chosen
         roles_to_apply = []
         if stage and stage in role_mapping:
             r = discord.utils.get(interaction.guild.roles, name=role_mapping[stage])
@@ -1008,7 +1012,6 @@ async def giverank(
             return
 
         if action == "rerank":
-            # Remove all other rank roles first, then add the new ones
             all_existing_roles = [discord.utils.get(interaction.guild.roles, name=role_mapping[k]) for k in all_role_keys]
             all_existing_roles = [r for r in all_existing_roles if r is not None]
             await user.remove_roles(*all_existing_roles)
