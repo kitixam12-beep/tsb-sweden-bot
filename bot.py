@@ -57,7 +57,6 @@ def clean_expired_warns():
         save_data_file(WARNS_FILE, warns_db)
 
 
-# --- GENERAL PERMISSION & CONTEXT HELPER ---
 def has_custom_role_or_admin(interaction: discord.Interaction) -> bool:
     if interaction.user.guild_permissions.administrator:
         return True
@@ -74,7 +73,6 @@ def has_custom_role_or_admin(interaction: discord.Interaction) -> bool:
     return any(role.id in allowed_role_ids for role in interaction.user.roles)
 
 
-# --- HIERARCHY CHECK HELPER ---
 def check_hierarchy(interaction: discord.Interaction, target: discord.Member) -> bool:
     if interaction.user == interaction.guild.owner:
         return True
@@ -83,7 +81,6 @@ def check_hierarchy(interaction: discord.Interaction, target: discord.Member) ->
     return interaction.user.top_role > target.top_role
 
 
-# --- FIND LOG CHANNEL HELPER ---
 def get_target_channel(guild: discord.Guild, channel_name: str) -> discord.TextChannel:
     for channel in guild.text_channels:
         if channel.name.lower() == channel_name.lower():
@@ -91,7 +88,6 @@ def get_target_channel(guild: discord.Guild, channel_name: str) -> discord.TextC
     return None
 
 
-# --- UNIFIED RECORD EMBED BUILDER ---
 def create_record_embed(
     title: str,
     interaction: discord.Interaction,
@@ -157,7 +153,8 @@ class BlacklistConfirmView(discord.ui.View):
                 ephemeral=True,
             )
             return
-
+        
+        await interaction.response.defer()
         self.value = True
         self.stop()
         try:
@@ -177,10 +174,19 @@ class BlacklistConfirmView(discord.ui.View):
             return
 
         self.value = False
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(view=self)
         self.stop()
+
+        target_id_str = str(self.target_id)
+        if target_id_str in saved_data_db:
+            saved_data_db.pop(target_id_str)
+            save_data_file(DATA_FILE, saved_data_db)
+
+        try:
+            await interaction.response.edit_message(content="❌ Blacklist action cancelled.", embed=None, view=None)
+            await asyncio.sleep(4)
+            await interaction.message.delete()
+        except Exception:
+            pass
 
 
 class UnblacklistConfirmView(discord.ui.View):
@@ -203,7 +209,8 @@ class UnblacklistConfirmView(discord.ui.View):
                 ephemeral=True,
             )
             return
-
+        
+        await interaction.response.defer()
         self.value = True
         self.stop()
         try:
@@ -223,10 +230,14 @@ class UnblacklistConfirmView(discord.ui.View):
             return
 
         self.value = False
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(view=self)
         self.stop()
+
+        try:
+            await interaction.response.edit_message(content="❌ Unblacklist action cancelled.", embed=None, view=None)
+            await asyncio.sleep(4)
+            await interaction.message.delete()
+        except Exception:
+            pass
 
 
 @bot.event
@@ -235,7 +246,7 @@ async def on_ready():
     check_warn_expiry.start()
     try:
         synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} slash commands globally!")
+        print(f"Successfully synced {len(synced)} global commands!")
     except Exception as e:
         print(f"Error syncing commands: {e}")
     print(f"Bot is online as {bot.user}!")
@@ -289,15 +300,14 @@ async def timeout(
 ):
     if not has_custom_role_or_admin(interaction):
         await interaction.response.send_message(
-            "❌ You do not have permission to use this command.",
-            ephemeral=False,
+            "❌ You do not have permission to use this command.", ephemeral=True
         )
         return
 
     if not check_hierarchy(interaction, member):
         await interaction.response.send_message(
-            "You cannot take action against this member because their highest role is equal to or higher than yours.",
-            ephemeral=False,
+            "You cannot timeout this member due to having an equal or higher role then you",
+            ephemeral=True,
         )
         return
 
@@ -307,7 +317,7 @@ async def timeout(
     if not val.isdigit():
         await interaction.response.send_message(
             "❌ Invalid duration format! Use numbers followed by s, m, h, or d (e.g., 10m).",
-            ephemeral=False,
+            ephemeral=True,
         )
         return
     num = int(val)
@@ -321,7 +331,7 @@ async def timeout(
         seconds = num * 86400
     else:
         await interaction.response.send_message(
-            "❌ Invalid unit! Use s, m, h, or d.", ephemeral=False
+            "❌ Invalid unit! Use s, m, h, or d.", ephemeral=True
         )
         return
 
@@ -341,7 +351,7 @@ async def timeout(
         await interaction.response.send_message(embed=embed)
     except Exception as e:
         await interaction.response.send_message(
-            f"❌ Failed to timeout member: {e}", ephemeral=False
+            f"❌ Failed to timeout member: {e}", ephemeral=True
         )
 
 
@@ -386,15 +396,14 @@ async def warn(
 ):
     if not has_custom_role_or_admin(interaction):
         await interaction.response.send_message(
-            "❌ You do not have permission to use this command.",
-            ephemeral=False,
+            "❌ You do not have permission to use this command.", ephemeral=True
         )
         return
 
     clean_id = user.strip("<@!> ")
     if not clean_id.isdigit():
         await interaction.response.send_message(
-            "❌ Please provide a valid user or user ID.", ephemeral=False
+            "❌ Please provide a valid user or user ID.", ephemeral=True
         )
         return
 
@@ -402,8 +411,8 @@ async def warn(
     target_member = interaction.guild.get_member(user_id)
     if target_member and not check_hierarchy(interaction, target_member):
         await interaction.response.send_message(
-            "You cannot take action against this member because their highest role is equal to or higher than yours.",
-            ephemeral=False,
+            "You cannot warn this member due to having an equal or higher role then you",
+            ephemeral=True,
         )
         return
 
@@ -443,7 +452,9 @@ async def warn(
     save_data_file(WARNS_FILE, warns_db)
 
     active_count = len(warns_db[user_id_str])
-    avatar_url = target_member.avatar.url if target_member and target_member.avatar else None
+    avatar_url = (
+        target_member.avatar.url if target_member and target_member.avatar else None
+    )
     issued_unix = int(now.timestamp())
 
     embed = create_record_embed(
@@ -456,7 +467,11 @@ async def warn(
         avatar_url=avatar_url,
         extra_fields=[
             ("⚠️ Severity", f"`{sev_display}`", True),
-            ("⏳ Expires", f"<t:{issued_unix if expires_at is None else int(expires_at)}:R>", True),
+            (
+                "⏳ Expires",
+                f"<t:{issued_unix if expires_at is None else int(expires_at)}:R>",
+                True,
+            ),
             ("🔸 Status", f"Strike `{active_count}` of `5` max", True),
         ],
     )
@@ -468,8 +483,7 @@ async def warn(
 async def warnings(interaction: discord.Interaction, user: str):
     if not has_custom_role_or_admin(interaction):
         await interaction.response.send_message(
-            "❌ You do not have permission to use this command.",
-            ephemeral=False,
+            "❌ You do not have permission to use this command.", ephemeral=True
         )
         return
 
@@ -477,7 +491,9 @@ async def warnings(interaction: discord.Interaction, user: str):
     user_id = int(clean_id)
     user_warns = warns_db.get(str(user_id), [])
     target_member = interaction.guild.get_member(user_id)
-    avatar_url = target_member.avatar.url if target_member and target_member.avatar else None
+    avatar_url = (
+        target_member.avatar.url if target_member and target_member.avatar else None
+    )
 
     embed = discord.Embed(
         title="🛡️ TSB SWEDEN — ACTIVE DOSSIER",
@@ -487,32 +503,46 @@ async def warnings(interaction: discord.Interaction, user: str):
     if avatar_url:
         embed.set_thumbnail(url=avatar_url)
 
-    embed.add_field(name="🎯 Target User", value=f"<@{user_id}>\n`ID: {user_id}`", inline=False)
+    embed.add_field(
+        name="🎯 Target User", value=f"<@{user_id}>\n`ID: {user_id}`", inline=False
+    )
     for idx, w in enumerate(user_warns, 1):
         embed.add_field(
             name=f"Infraction [{idx}] ({w.get('severity')})",
             value=f"**Violation:** {w.get('reason')}\n**Category:** `{w.get('category')}`",
             inline=False,
         )
-    await interaction.response.send_message(embed=embed, ephemeral=False)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-@bot.tree.command(name="removewarn", description="Remove a specific warning index from a user")
-@app_commands.describe(user="The user or user ID", warn_index="The warning number to remove")
-async def removewarn(interaction: discord.Interaction, user: str, warn_index: int):
+@bot.tree.command(
+    name="removewarn", description="Remove a specific warning index from a user"
+)
+@app_commands.describe(
+    user="The user or user ID", warn_index="The warning number to remove"
+)
+async def removewarn(
+    interaction: discord.Interaction, user: str, warn_index: int
+):
     if not has_custom_role_or_admin(interaction):
-        await interaction.response.send_message("❌ You do not have permission.", ephemeral=False)
+        await interaction.response.send_message(
+            "❌ You do not have permission.", ephemeral=True
+        )
         return
 
     clean_id = user.strip("<@!> ")
     if not clean_id.isdigit():
-        await interaction.response.send_message("❌ Invalid user ID.", ephemeral=False)
+        await interaction.response.send_message(
+            "❌ Invalid user ID.", ephemeral=True
+        )
         return
     user_id = int(clean_id)
     user_id_str = str(user_id)
 
     if user_id_str not in warns_db or not warns_db[user_id_str]:
-        await interaction.response.send_message("❌ This user has no active warnings to remove.", ephemeral=True)
+        await interaction.response.send_message(
+            "❌ This user has no active warnings to remove.", ephemeral=True
+        )
         return
 
     user_warns = warns_db[user_id_str]
@@ -521,37 +551,82 @@ async def removewarn(interaction: discord.Interaction, user: str, warn_index: in
         if not user_warns:
             del warns_db[user_id_str]
         save_data_file(WARNS_FILE, warns_db)
-        await interaction.response.send_message(f"✅ Successfully removed warning `#{warn_index}` (**{removed.get('reason')}**) for <@{user_id}>.", ephemeral=False)
+        await interaction.response.send_message(
+            f"✅ Successfully removed warning `#{warn_index}` (**{removed.get('reason')}**) for <@{user_id}>.",
+            ephemeral=True,
+        )
     else:
-        await interaction.response.send_message(f"❌ Invalid warning index. Choose between `1` and `{len(user_warns)}`.", ephemeral=True)
+        await interaction.response.send_message(
+            f"❌ Invalid warning index. Choose between `1` and `{len(user_warns)}`.",
+            ephemeral=True,
+        )
 
 
-@bot.tree.command(name="blacklist", description="Blacklist a member by user or user ID")
-@app_commands.describe(user="The member or user ID to blacklist", reason="Reason", category="Category")
+@bot.tree.command(
+    name="blacklist", description="Blacklist a member by user or user ID"
+)
+@app_commands.describe(
+    user="The member or user ID to blacklist", reason="Reason", category="Category"
+)
 async def blacklist(
     interaction: discord.Interaction,
     user: str,
     reason: str,
     category: Literal["Appealable⚖️", "Bail only💰", "Permanent⛔"],
 ):
-    if not has_custom_role_or_admin(interaction):
-        await interaction.response.send_message("❌ No permission.", ephemeral=False)
+    is_admin = interaction.user.guild_permissions.administrator
+    has_blacklist_role = any(
+        role.id == 1538119694928842762 for role in interaction.user.roles
+    )
+
+    if not (is_admin or has_blacklist_role):
+        await interaction.response.send_message(
+            "❌ You do not have permission to use this command.", ephemeral=True
+        )
         return
 
-    target_id = int(user.strip("<@!> "))
+    if not is_admin and interaction.channel.name.lower() != "《➦》blacklist".lower():
+        await interaction.response.send_message(
+            "❌ You can only use the blacklist command in the 《➦》blacklist channel.",
+            ephemeral=True,
+        )
+        return
+
+    clean_id = user.strip("<@!> ")
+    if not clean_id.isdigit():
+        await interaction.response.send_message(
+            "❌ Please provide a valid user or user ID.", ephemeral=True
+        )
+        return
+
+    target_id = int(clean_id)
     guild = interaction.guild
     member = guild.get_member(target_id)
+
+    if member and not check_hierarchy(interaction, member):
+        await interaction.response.send_message(
+            "You cannot blacklist this member due to having an equal or higher role then yours",
+            ephemeral=True,
+        )
+        return
+
     member_avatar = member.avatar.url if member and member.avatar else None
 
     embed = discord.Embed(
         title="🛡️ TSB SWEDEN — BLACKLIST SYSTEM",
-        description="A moderator has requested to restrict a user's access. Review details below:",
+        description=(
+            "A moderator has requested to restrict a user's access. Review details below:"
+        ),
         color=discord.Color.from_rgb(220, 20, 60),
     )
     if member_avatar:
         embed.set_thumbnail(url=member_avatar)
 
-    embed.add_field(name="🎯 Target Member", value=f"<@{target_id}>\n`ID: {target_id}`", inline=True)
+    embed.add_field(
+        name="🎯 Target Member",
+        value=f"<@{target_id}>\n`ID: {target_id}`",
+        inline=True,
+    )
     embed.add_field(name="📂 Category", value=f"**{category}**", inline=True)
     embed.add_field(name="📝 Reason", value=reason, inline=False)
 
@@ -584,11 +659,12 @@ async def blacklist(
 
         await member.edit(nick=f"Blacklisted [{member.name}]")
         if role_ids:
-            await member.remove_roles(*(guild.get_role(r) for r in role_ids if guild.get_role(r)))
+            await member.remove_roles(
+                *(guild.get_role(r) for r in role_ids if guild.get_role(r))
+            )
         if blacklist_role:
             await member.add_roles(blacklist_role)
 
-        # Send DM notification to user
         try:
             dm_text = (
                 f"🚫 You have been **blacklisted** from **{guild.name}**\n\n"
@@ -598,11 +674,17 @@ async def blacklist(
             if category == "Appealable⚖️":
                 dm_text += "⚖️ **This blacklist is APPEALABLE.**"
             elif category == "Bail only💰":
-                dm_text += "💰 **This blacklist is BAILABLE ONLY (Not Appealable)**"
+                dm_text += (
+                    "💰 **This blacklist is BAILABLE ONLY (Not Appealable)**"
+                )
             else:
                 dm_text += "⛔ **This blacklist is PERMANENT.**"
-            
-            target_user_obj = member if isinstance(member, discord.User) else await bot.fetch_user(target_id)
+
+            target_user_obj = (
+                member
+                if isinstance(member, discord.User)
+                else await bot.fetch_user(target_id)
+            )
             await target_user_obj.send(dm_text)
         except Exception:
             pass
@@ -616,25 +698,51 @@ async def blacklist(
         category=category,
         avatar_url=member_avatar,
     )
-    
-    target_channel = get_target_channel(guild, "blacklist")
+
+    target_channel = get_target_channel(guild, "《➦》blacklist")
     if target_channel:
         await target_channel.send(embed=log_embed)
     else:
         await interaction.channel.send(embed=log_embed)
 
 
-@bot.tree.command(name="unblacklist", description="Remove a user from the blacklist")
-@app_commands.describe(user="User to unblacklist", reason="Reason")
+@bot.tree.command(
+    name="unblacklist", description="Remove a user from the blacklist"
+)
+@app_commands.describe(user="User mention or User ID to unblacklist", reason="Reason")
 async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
-    if not has_custom_role_or_admin(interaction):
-        await interaction.response.send_message("❌ No permission.", ephemeral=False)
+    is_admin = interaction.user.guild_permissions.administrator
+    has_unblacklist_role = any(
+        role.id in {1538119694928842762, 1538120560125415514}
+        for role in interaction.user.roles
+    )
+
+    if not (is_admin or has_unblacklist_role):
+        await interaction.response.send_message(
+            "❌ You do not have permission to use this command.", ephemeral=True
+        )
         return
 
-    target_id = int(user.strip("<@!> "))
+    if not is_admin and interaction.channel.name.lower() != "《➥》unblacklist".lower():
+        await interaction.response.send_message(
+            "❌ You can only use the unblacklist command in the 《➥》unblacklist channel.",
+            ephemeral=True,
+        )
+        return
+
+    clean_id = user.strip("<@!> ")
+    if not clean_id.isdigit():
+        await interaction.response.send_message(
+            "❌ Please provide a valid user or user ID.", ephemeral=True
+        )
+        return
+
+    target_id = int(clean_id)
     target_id_str = str(target_id)
     if target_id_str not in saved_data_db:
-        await interaction.response.send_message(f"❌ No blacklist record found for ID `{target_id}`.", ephemeral=False)
+        await interaction.response.send_message(
+            f"❌ No blacklist record found for ID `{target_id}`.", ephemeral=True
+        )
         return
 
     guild = interaction.guild
@@ -643,13 +751,19 @@ async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
 
     embed = discord.Embed(
         title="🛡️ TSB SWEDEN — UNBLACKLIST SYSTEM",
-        description="A moderator has requested to remove a user from the blacklist. Review details below:",
+        description=(
+            "A moderator has requested to remove a user from the blacklist. Review details below:"
+        ),
         color=discord.Color.from_rgb(220, 20, 60),
     )
     if member_avatar:
         embed.set_thumbnail(url=member_avatar)
 
-    embed.add_field(name="🎯 Target Member", value=f"<@{target_id}>\n`ID: {target_id}`", inline=True)
+    embed.add_field(
+        name="🎯 Target Member",
+        value=f"<@{target_id}>\n`ID: {target_id}`",
+        inline=True,
+    )
     embed.add_field(name="📝 Reason", value=reason, inline=False)
 
     view = UnblacklistConfirmView(interaction, target_id)
@@ -667,7 +781,11 @@ async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
         if blacklist_role:
             await member.remove_roles(blacklist_role)
         if data.get("roles"):
-            restored_roles = [guild.get_role(r_id) for r_id in data["roles"] if guild.get_role(r_id)]
+            restored_roles = [
+                guild.get_role(r_id)
+                for r_id in data["roles"]
+                if guild.get_role(r_id)
+            ]
             if restored_roles:
                 await member.add_roles(*restored_roles)
         try:
@@ -675,54 +793,69 @@ async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
         except Exception:
             pass
 
-        # Send DM notification for unblacklist
         try:
             unbl_text = (
                 f"✅ You have been **UNBLACKLISTED** from **{guild.name}**\n\n"
                 f"**Reason:** {reason}\n\n"
                 "Your roles have been restored. Welcome back!"
             )
-            target_user_obj = member if isinstance(member, discord.User) else await bot.fetch_user(target_id)
+            target_user_obj = (
+                member
+                if isinstance(member, discord.User)
+                else await bot.fetch_user(target_id)
+            )
             await target_user_obj.send(unbl_text)
         except Exception:
             pass
 
     log_embed = create_record_embed(
-        title="TSB SWEDEN — UNBLACKLIST RECORD",
+        title="USER UNBLACKLISTED RECORD",
         interaction=interaction,
         target_mention=f"<@{target_id}>",
         target_id=target_id,
         reason=reason,
         avatar_url=member_avatar,
     )
-    
-    target_channel = get_target_channel(guild, "unblacklist")
+
+    target_channel = get_target_channel(guild, "《➥》unblacklist")
     if target_channel:
         await target_channel.send(embed=log_embed)
     else:
         await interaction.channel.send(embed=log_embed)
 
 
-@bot.tree.command(name="viewblacklistinfo", description="View active blacklist details for a user")
+@bot.tree.command(
+    name="viewblacklistinfo",
+    description="View active blacklist details for a user",
+)
 @app_commands.describe(user="The user or user ID to check")
 async def viewblacklistinfo(interaction: discord.Interaction, user: str):
     if not has_custom_role_or_admin(interaction):
-        await interaction.response.send_message("❌ You do not have permission.", ephemeral=False)
+        await interaction.response.send_message(
+            "❌ You do not have permission.", ephemeral=True
+        )
         return
 
     clean_id = user.strip("<@!> ")
     if not clean_id.isdigit():
-        await interaction.response.send_message("❌ Invalid user ID.", ephemeral=False)
+        await interaction.response.send_message(
+            "❌ Invalid user ID.", ephemeral=True
+        )
         return
     user_id_str = str(clean_id)
 
     if user_id_str not in saved_data_db:
-        await interaction.response.send_message(f"❌ User with ID `{clean_id}` is not currently blacklisted.", ephemeral=True)
+        await interaction.response.send_message(
+            f"❌ User with ID `{clean_id}` is not currently blacklisted.",
+            ephemeral=True,
+        )
         return
 
     data = saved_data_db[user_id_str]
     target_member = interaction.guild.get_member(int(clean_id))
-    avatar_url = target_member.avatar.url if target_member and target_member.avatar else None
+    avatar_url = (
+        target_member.avatar.url if target_member and target_member.avatar else None
+    )
 
     embed = discord.Embed(
         title="🛡️ BLACKLIST DOSSIER INFO",
@@ -731,23 +864,46 @@ async def viewblacklistinfo(interaction: discord.Interaction, user: str):
     if avatar_url:
         embed.set_thumbnail(url=avatar_url)
 
-    embed.add_field(name="🎯 Target User", value=f"<@{clean_id}>\n`ID: {clean_id}`", inline=False)
-    embed.add_field(name="📂 Category", value=f"**{data.get('category', 'N/A')}**", inline=True)
-    embed.add_field(name="📝 Reason", value=data.get("reason", "No reason provided"), inline=False)
-    await interaction.response.send_message(embed=embed, ephemeral=False)
+    embed.add_field(
+        name="🎯 Target User",
+        value=f"<@{clean_id}>\n`ID: {clean_id}`",
+        inline=False,
+    )
+    embed.add_field(
+        name="📂 Category", value=f"**{data.get('category', 'N/A')}**", inline=True
+    )
+    embed.add_field(
+        name="📝 Reason", value=data.get("reason", "No reason provided"), inline=False
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-@bot.tree.command(name="send", description="Send a custom message or announcement to a channel")
-@app_commands.describe(channel="Channel to send the message to", message="The message content")
-async def send(interaction: discord.Interaction, channel: discord.TextChannel, message: str):
+@bot.tree.command(
+    name="send", description="Send a custom message or announcement to a channel"
+)
+@app_commands.describe(
+    channel="Channel to send the message to", message="The message content"
+)
+async def send(
+    interaction: discord.Interaction,
+    channel: discord.TextChannel,
+    message: str,
+):
     if not has_custom_role_or_admin(interaction):
-        await interaction.response.send_message("❌ You do not have permission.", ephemeral=False)
+        await interaction.response.send_message(
+            "❌ You do not have permission.", ephemeral=True
+        )
         return
 
     try:
         await channel.send(message)
-        await interaction.response.send_message(f"✅ Successfully sent message to {channel.mention}.", ephemeral=True)
+        await interaction.response.send_message(
+            f"✅ Successfully sent message to {channel.mention}.", ephemeral=True
+        )
     except Exception as e:
-        await interaction.response.send_message(f"❌ Failed to send message: {e}", ephemeral=True)
+        await interaction.response.send_message(
+            f"❌ Failed to send message: {e}", ephemeral=True
+        )
+
 
 bot.run(os.getenv("DISCORD_TOKEN"))
