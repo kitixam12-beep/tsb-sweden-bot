@@ -964,6 +964,10 @@ async def giverank(
     extra_low_app: bool = False,
     extra_deflated: bool = False
 ):
+    # Här mappar vi dina rollnamn (för textvisning) och du kan även lägga in ID:n om du vill vara 100% säker
+    # För närvarande matchar vi via guild.get_role() med dina ID:n om det behövs, eller via namn.
+    # Låt oss köra en robust variant som kollar både ID och namn:
+    
     role_mapping = {
         "Stage 0": "Stage 0",
         "Stage 1": "Stage 1",
