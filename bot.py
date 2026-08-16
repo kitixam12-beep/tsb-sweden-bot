@@ -994,7 +994,8 @@ async def giverank(
         roles_to_apply = []
         if stage and stage in role_mapping:
             r = discord.utils.get(interaction.guild.roles, name=role_mapping[stage])
-            if r: roles_to_apply.append(r)
+            if r: 
+                roles_to_apply.append(r)
 
         toggles = {
             "prog1_low": prog1_low, "prog1_mid": prog1_mid, "prog1_high": prog1_high,
@@ -1005,7 +1006,8 @@ async def giverank(
         for key, val in toggles.items():
             if val:
                 r = discord.utils.get(interaction.guild.roles, name=role_mapping[key])
-                if r: roles_to_apply.append(r)
+                if r: 
+                    roles_to_apply.append(r)
 
         if not roles_to_apply:
             await interaction.response.send_message("Please select at least one stage, progression, or extra role to apply.", ephemeral=True)
