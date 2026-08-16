@@ -911,16 +911,16 @@ async def leaderboard(interaction: discord.Interaction):
         await interaction.response.send_message("❌ You do not have permission.", ephemeral=True)
         return
 
-    text = (
+        text = (
         "### ┌「 Leaderboard 」┐\n"
-        "↳ ✦ **`[ Top 1. ]`** - <@etx_renzo>\n"
-        "↳ ✦ **`[ Top 2. ]`** - <@filip02452>\n"
-        "↳ ✦ **`[ Top 3. ]`** - <@appl3_123_23>\n"
-        "↳ ✦ **`[ Top 4. ]`** - <@1.notillux>\n"
-        "↳ ✦ **`[ Top 5. ]`** - <@bald_i.am>\n"
-        "↳ ✦ **`[ Top 6. ]`** - <@caspiano_12.2>\n"
-        "↳ ✦ **`[ Top 7. ]`** - <@sajborchris>\n"
-        "↳ ✦ **`[ Top 8. ]`** - <@azasre>\n"
+        "↳ ✦ **`[ Top 1. ]`** - 「 @etx_renzo 」\n"
+        "↳ ✦ **`[ Top 2. ]`** - 「 @filip02452 」\n"
+        "↳ ✦ **`[ Top 3. ]`** - 「 @appl3_123_23 」\n"
+        "↳ ✦ **`[ Top 4. ]`** - 「 @1.notillux 」\n"
+        "↳ ✦ **`[ Top 5. ]`** - 「 @bald_i.am 」\n"
+        "↳ ✦ **`[ Top 6. ]`** - 「 @caspiano_12.2 」\n"
+        "↳ ✦ **`[ Top 7. ]`** - 「 @sajborchris 」\n"
+        "↳ ✦ **`[ Top 8. ]`** - 「 @azasre 」\n"
         "↳ ✦ **`[ Top 9. ]`** - 「 VACANT 」\n"
         "↳ ✦ **`[ Top 10. ]`** - 「 VACANT 」\n"
         "└───────────────────────┘"
