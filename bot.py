@@ -997,7 +997,7 @@ async def giverank(
 
             await user.remove_roles(*roles_to_remove)
             removed_names = ", ".join([r.name for r in roles_to_remove])
-            await interaction.response.send_message(f"{user.mention} rank roles ({removed_names}) have been removed.", ephemeral=True)
+            await interaction.response.send_message(f"{user.mention} has been unranked ({removed_names}).", ephemeral=True)
             return
 
         roles_to_apply = []
@@ -1023,7 +1023,7 @@ async def giverank(
             await interaction.response.send_message("Please select at least one role to apply!", ephemeral=True)
             return
 
-        role_names_str = " ".join([r.name for r in roles_to_apply])
+        role_names_str = ", ".join([r.name for r in roles_to_apply])
 
         if action == "rerank":
             all_existing_roles = []
