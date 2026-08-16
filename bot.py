@@ -964,34 +964,40 @@ async def giverank(
     extra_low_app: bool = False,
     extra_deflated: bool = False
 ):
-    # Här mappar vi dina rollnamn (för textvisning) och du kan även lägga in ID:n om du vill vara 100% säker
-    # För närvarande matchar vi via guild.get_role() med dina ID:n om det behövs, eller via namn.
-    # Låt oss köra en robust variant som kollar både ID och namn:
-    
-    role_mapping = {
+    # Dina exakta roll-ID:n mappade här
+    role_id_mapping = {
+        "prog1_low": 1538547865712992307,
+        "prog1_mid": 1538547918947225660,
+        "prog1_high": 1538548021531381811,
+        "prog2_weak": 1538548079798788156,
+        "prog2_stable": 1538548125965357107,
+        "prog2_strong": 1538548171611836516
+    }
+
+    # Om du har ID:n för dina Stage-roller kan du lägga till dem här också, annars hittar den dem via namn:
+    stage_name_mapping = {
         "Stage 0": "Stage 0",
         "Stage 1": "Stage 1",
         "Stage 2": "Stage 2",
         "Stage 3": "Stage 3",
         "Stage 4": "Stage 4",
-        "Stage 5": "Stage 5",
-        "prog1_low": "Prog 1: Low",
-        "prog1_mid": "Prog 1: Mid",
-        "prog1_high": "Prog 1: High",
-        "prog2_weak": "Prog 2: Weak",
-        "prog2_stable": "Prog 2: Stable",
-        "prog2_strong": "Prog 2: Strong",
-        "extra_low_app": "Extra: Stage 1 Low App",
-        "extra_deflated": "Extra: Deflated"
+        "Stage 5": "Stage 5"
     }
 
-    all_role_keys = list(role_mapping.keys())
-
     try:
+        # Samla ihop alla ID-nycklar för rensning vid unrank/rerank
+        all_role_ids = list(role_id_mapping.values())
+
         if action == "unrank":
             roles_to_remove = []
-            for k in all_role_keys:
-                r = discord.utils.get(interaction.guild.roles, name=role_mapping[k])
+            for rid in all_role_ids:
+                r = interaction.guild.get_role(rid)
+                if r and r in user.roles:
+                    roles_to_remove.append(r)
+            
+            # Kolla även stage-roller för unrank
+            for sname in stage_name_mapping.values():
+                r = discord.utils.get(interaction.guild.roles, name=sname)
                 if r and r in user.roles:
                     roles_to_remove.append(r)
 
@@ -1006,20 +1012,21 @@ async def giverank(
 
         roles_to_apply = []
         
-        if stage:
-            r = discord.utils.get(interaction.guild.roles, name=role_mapping.get(stage))
+        # Hämta stage om det är valt
+        if stage and stage in stage_name_mapping:
+            r = discord.utils.get(interaction.guild.roles, name=stage_name_mapping[stage])
             if r:
                 roles_to_apply.append(r)
 
+        # Hämta toggles via ID:n
         toggles = {
             "prog1_low": prog1_low, "prog1_mid": prog1_mid, "prog1_high": prog1_high,
-            "prog2_weak": prog2_weak, "prog2_stable": prog2_stable, "prog2_strong": prog2_strong,
-            "extra_low_app": extra_low_app, "extra_deflated": extra_deflated
+            "prog2_weak": prog2_weak, "prog2_stable": prog2_stable, "prog2_strong": prog2_strong
         }
 
         for key, val in toggles.items():
-            if val:
-                r = discord.utils.get(interaction.guild.roles, name=role_mapping.get(key))
+            if val and key in role_id_mapping:
+                r = interaction.guild.get_role(role_id_mapping[key])
                 if r:
                     roles_to_apply.append(r)
 
@@ -1031,11 +1038,15 @@ async def giverank(
 
         if action == "rerank":
             all_existing_roles = []
-            for k in all_role_keys:
-                r = discord.utils.get(interaction.guild.roles, name=role_mapping[k])
+            for rid in all_role_ids:
+                r = interaction.guild.get_role(rid)
                 if r and r in user.roles:
                     all_existing_roles.append(r)
-            
+            for sname in stage_name_mapping.values():
+                r = discord.utils.get(interaction.guild.roles, name=sname)
+                if r and r in user.roles:
+                    all_existing_roles.append(r)
+
             if all_existing_roles:
                 await user.remove_roles(*all_existing_roles)
 
@@ -1047,5 +1058,5 @@ async def giverank(
             await interaction.response.send_message(f"{user.mention} has been ranked {role_names_str}.", ephemeral=True)
 
     except Exception as e:
-        await interaction.response.send_message(f"An error occurred: {e}", ephemeral=True)  
+        await interaction.response.send_message(f"An error occurred: {e}", ephemeral=True) 
 bot.run(os.getenv("DISCORD_TOKEN"))
