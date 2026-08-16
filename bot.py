@@ -904,30 +904,30 @@ async def send(
         await interaction.response.send_message(
             f"❌ Failed to send message: {e}", ephemeral=True
         )
-@bot.tree.command(name="stylish_leaderboard", description="Displays a stylish custom leaderboard")
-async def stylish_leaderboard(interaction: discord.Interaction):
+
+  @bot.tree.command(name="leaderboard", description="Displays the official TSBSWE leaderboard")
+async def leaderboard(interaction: discord.Interaction):
     if not has_custom_role_or_admin(interaction):
         await interaction.response.send_message("❌ You do not have permission.", ephemeral=True)
         return
 
-    lines = [
-        "╔══════════════════════════════╗",
-        "║       『 TSB LEADERBOARD 』      ║",
-        "╠══════════════════════════════╣",
-        " ↳ ✦ 〚 Top 1.〛 - 〘 @Renzo 〙",
-        " ↳ ✦ 〚 Top 2.〛 - 〘 @CZK 〙",
-        " ↳ ✦ <b>Top 3.</b> - 〘 VACANT 〙",
-        " ↳ ✦ <b>Top 4.</b> - 〘 VACANT 〙",
-        " ↳ ✦ <b>Top 5.</b> - 〘 VACANT 〙",
-        " ↳ ✦ <b>Top 6.</b> - <b>VACANT</b>",
-        " ↳ ✦ <b>Top 7.</b> - 〘 @cesare 〙",
-        " ↳ ✦ <b>Top 8.</b> - 〘 @777 〙",
-        " ↳ ✦ <b>Top 9.</b> - 〘 @ffffffff 〙",
-        " ↳ ✦ <b>Top 10.</b> - <b>VACANT</b>",
-        "╚══════════════════════════════╝"
-    ]
-    
-    formatted_message = "```ini\n" + "\n".join(lines) + "\n```"
-    await interaction.response.send_message(formatted_message)
+    # Replace these IDs with the actual Discord User IDs if you want the mentions to link correctly, 
+    # or use text mentions if they are in the server. Here we format them cleanly:
+    text = (
+        "### ┌「 Leaderboard 」┐\n"
+        "↳ ✦ **`[ Top 1. ]`** - 「 @etx_renzo 」\n"
+        "↳ ✦ **`[ Top 2. ]`** - 「 @filip02452 」\n"
+        "↳ ✦ **`[ Top 3. ]`** - 「 @appl3_123_23 」\n"
+        "↳ ✦ **`[ Top 4. ]`** - 「 @1.notillux 」\n"
+        "↳ ✦ **`[ Top 5. ]`** - 「 @bald_i.am 」\n"
+        "↳ ✦ **`[ Top 6. ]`** - 「 @caspiano_12.2 」\n"
+        "↳ ✦ **`[ Top 7. ]`** - 「 @sajborchris 」\n"
+        "↳ ✦ **`[ Top 8. ]`** - 「 @azasre 」\n"
+        "↳ ✦ **`[ Top 9. ]`** - 「 VACANT 」\n"
+        "↳ ✦ **`[ Top 10. ]`** - 「 VACANT 」\n"
+        "└───────────────────────┘"
+    )
+
+    await interaction.response.send_message(text) 
 
 bot.run(os.getenv("DISCORD_TOKEN"))
