@@ -973,4 +973,4 @@ async def giverank(
     await interaction.followup.send(f"✅ `giverank` command processed successfully for {user.mention}.", ephemeral=True)
 
 
-bot.run("YOUR_BOT_TOKEN_HERE")
+bot.run(os.getenv("DISCORD_TOKEN"))
