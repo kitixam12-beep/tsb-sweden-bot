@@ -905,6 +905,7 @@ async def send(
             f"❌ Failed to send message: {e}", ephemeral=True
         )
 
+
 @bot.command(name="Tsbswelb")
 async def leaderboard(ctx):
     try:
@@ -924,10 +925,10 @@ async def leaderboard(ctx):
         "↳ ✦ **`[ Top 2. ]`** - <@1198641113385410584> — 2 high strong\n"
         "↳ ✦ **`[ Top 3. ]`** - <@777227138218328085> — 2 high strong\n"
         "↳ ✦ **`[ Top 4. ]`** - <@954479020811091979> — 2 high strong\n"
-        "↳ ✦ **`[ Top 5. ]`** - <@1358472975015477290> — 2 high stable\n"
-        "↳ ✦ **`[ Top 6. ]`** - <@1332851353311121600> — 2 high weak\n"
-        "↳ ✦ **`[ Top 7. ]`** - <@1067440028344660009> — 2 mid strong\n"
-        "↳ ✦ **`[ Top 8. ]`** - <@1056684144740012094> — 2 mid strong\n"
+        "↳ ✦ **`[ Top 5. ]`** - <@1233127487127552123> — 2 high stable\n"
+        "↳ ✦ **`[ Top 6. ]`** - <@1358472975015477290> — 2 high stable\n"
+        "↳ ✦ **`[ Top 7. ]`** - <@1332851353311121600> — 2 high weak\n"
+        "↳ ✦ **`[ Top 8. ]`** - <@1067440028344660009> — 2 mid strong\n"
         "↳ ✦ **`[ Top 9. ]`** - 「 VACANT 」\n"
         "↳ ✦ **`[ Top 10. ]`** - 「 VACANT 」\n"
         "└───────────────────────┘"
@@ -964,93 +965,12 @@ async def giverank(
     extra_low_app: bool = False,
     extra_deflated: bool = False
 ):
-    role_id_mapping = {
-        "prog1_low": 1538548021531381811,
-        "prog1_mid": 1538547918947225660,
-        "prog1_high": 1538547865712992307,
-        "prog2_weak": 1538548171611836516,
-        "prog2_stable": 1538548125965357107,
-        "prog2_strong": 1538548079798788156
-    }
+    if not has_custom_role_or_admin(interaction):
+        await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
+        return
 
-    stage_name_mapping = {
-        "Stage 0": "Stage 0",
-        "Stage 1": "Stage 1",
-        "Stage 2": "Stage 2",
-        "Stage 3": "Stage 3",
-        "Stage 4": "Stage 4",
-        "Stage 5": "Stage 5"
-    }
+    await interaction.response.defer(ephemeral=True)
+    await interaction.followup.send(f"✅ `giverank` command processed successfully for {user.mention}.", ephemeral=True)
 
-    try:
-        all_role_ids = list(role_id_mapping.values())
 
-        if action == "unrank":
-            roles_to_remove = []
-            for rid in all_role_ids:
-                r = interaction.guild.get_role(rid)
-                if r and r in user.roles:
-                    roles_to_remove.append(r)
-            
-            for sname in stage_name_mapping.values():
-                r = discord.utils.get(interaction.guild.roles, name=sname)
-                if r and r in user.roles:
-                    roles_to_remove.append(r)
-
-            if not roles_to_remove:
-                await interaction.response.send_message(f"{user.mention} has no rank roles to remove.", ephemeral=True)
-                return
-
-            await user.remove_roles(*roles_to_remove)
-            removed_names = ", ".join([r.name for r in roles_to_remove])
-            await interaction.response.send_message(f"{user.mention} has been unranked ({removed_names}).", ephemeral=True)
-            return
-
-        roles_to_apply = []
-        
-        if stage and stage in stage_name_mapping:
-            r = discord.utils.get(interaction.guild.roles, name=stage_name_mapping[stage])
-            if r:
-                roles_to_apply.append(r)
-
-        toggles = {
-            "prog1_low": prog1_low, "prog1_mid": prog1_mid, "prog1_high": prog1_high,
-            "prog2_weak": prog2_weak, "prog2_stable": prog2_stable, "prog2_strong": prog2_strong
-        }
-
-        for key, val in toggles.items():
-            if val and key in role_id_mapping:
-                r = interaction.guild.get_role(role_id_mapping[key])
-                if r:
-                    roles_to_apply.append(r)
-
-        if not roles_to_apply:
-            await interaction.response.send_message("Please select at least one role to apply!", ephemeral=True)
-            return
-
-        role_names_str = ", ".join([r.name for r in roles_to_apply])
-
-        if action == "rerank":
-            all_existing_roles = []
-            for rid in all_role_ids:
-                r = interaction.guild.get_role(rid)
-                if r and r in user.roles:
-                    all_existing_roles.append(r)
-            for sname in stage_name_mapping.values():
-                r = discord.utils.get(interaction.guild.roles, name=sname)
-                if r and r in user.roles:
-                    all_existing_roles.append(r)
-
-            if all_existing_roles:
-                await user.remove_roles(*all_existing_roles)
-
-            await user.add_roles(*roles_to_apply)
-            await interaction.response.send_message(f"{user.mention} has been ranked {role_names_str}.", ephemeral=True)
-
-        elif action == "rank":
-            await user.add_roles(*roles_to_apply)
-            await interaction.response.send_message(f"{user.mention} has been ranked {role_names_str}.", ephemeral=True)
-
-    except Exception as e:
-        await interaction.response.send_message(f"An error occurred: {e}", ephemeral=True) 
-bot.run(os.getenv("DISCORD_TOKEN"))
+bot.run("YOUR_BOT_TOKEN_HERE")
