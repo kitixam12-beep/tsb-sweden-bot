@@ -612,23 +612,39 @@ async def blacklist(
 
     member_avatar = member.avatar.url if member and member.avatar else None
 
+    # New Blacklist Confirmation Embed Design
     embed = discord.Embed(
-        title="🛡️ TSB SWEDEN — BLACKLIST SYSTEM",
-        description=(
-            "A moderator has requested to restrict a user's access. Review details below:"
-        ),
-        color=discord.Color.from_rgb(220, 20, 60),
+        title="🚫 User Blacklisted",
+        description="A user has been restricted from using bot commands or services.",
+        color=16730183,
     )
     if member_avatar:
         embed.set_thumbnail(url=member_avatar)
+    elif guild.icon:
+        embed.set_thumbnail(url=guild.icon.url)
 
     embed.add_field(
-        name="🎯 Target Member",
-        value=f"<@{target_id}>\n`ID: {target_id}`",
+        name="👤 Target User",
+        value=f"<@{target_id}> (`{target_id}`)",
+        inline=False,
+    )
+    embed.add_field(
+        name="🛡️ Moderated By",
+        value=f"{interaction.user.mention}",
         inline=True,
     )
-    embed.add_field(name="📂 Category", value=f"**{category}**", inline=True)
-    embed.add_field(name="📝 Reason", value=reason, inline=False)
+    embed.add_field(
+        name="📝 Reason",
+        value=reason,
+        inline=True,
+    )
+    embed.add_field(
+        name="📂 Category",
+        value=f"**{category}**",
+        inline=True,
+    )
+    embed.set_footer(text="TSB Sweden Security System")
+    embed.timestamp = datetime.now(timezone.utc)
 
     view = BlacklistConfirmView(interaction, target_id)
     await interaction.response.send_message(embed=embed, view=view)
@@ -689,15 +705,38 @@ async def blacklist(
         except Exception:
             pass
 
-    log_embed = create_record_embed(
-        title="USER BLACKLISTED RECORD",
-        interaction=interaction,
-        target_mention=f"<@{target_id}>",
-        target_id=target_id,
-        reason=reason,
-        category=category,
-        avatar_url=member_avatar,
+    log_embed = discord.Embed(
+        title="🚫 User Blacklisted",
+        description="A user has been restricted from using bot commands or services.",
+        color=16730183,
     )
+    if member_avatar:
+        log_embed.set_thumbnail(url=member_avatar)
+    elif guild.icon:
+        log_embed.set_thumbnail(url=guild.icon.url)
+
+    log_embed.add_field(
+        name="👤 Target User",
+        value=f"<@{target_id}> (`{target_id}`)",
+        inline=False,
+    )
+    log_embed.add_field(
+        name="🛡️ Moderated By",
+        value=f"{interaction.user.mention}",
+        inline=True,
+    )
+    log_embed.add_field(
+        name="📝 Reason",
+        value=reason,
+        inline=True,
+    )
+    log_embed.add_field(
+        name="📂 Category",
+        value=f"**{category}**",
+        inline=True,
+    )
+    log_embed.set_footer(text="TSB Sweden Security System")
+    log_embed.timestamp = datetime.now(timezone.utc)
 
     target_channel = get_target_channel(guild, "《➦》blacklist")
     if target_channel:
@@ -749,22 +788,34 @@ async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
     member = guild.get_member(target_id)
     member_avatar = member.avatar.url if member and member.avatar else None
 
+    # New Unblacklist Confirmation Embed Design
     embed = discord.Embed(
-        title="🛡️ TSB SWEDEN — UNBLACKLIST SYSTEM",
-        description=(
-            "A moderator has requested to remove a user from the blacklist. Review details below:"
-        ),
-        color=discord.Color.from_rgb(220, 20, 60),
+        title="✅ Blacklist Revoked",
+        description="A user's restrictions have been lifted, and access is restored.",
+        color=3066993,
     )
     if member_avatar:
         embed.set_thumbnail(url=member_avatar)
+    elif guild.icon:
+        embed.set_thumbnail(url=guild.icon.url)
 
     embed.add_field(
-        name="🎯 Target Member",
-        value=f"<@{target_id}>\n`ID: {target_id}`",
+        name="👤 Target User",
+        value=f"<@{target_id}> (`{target_id}`)",
+        inline=False,
+    )
+    embed.add_field(
+        name="🛡️ Cleared By",
+        value=f"{interaction.user.mention}",
         inline=True,
     )
-    embed.add_field(name="📝 Reason", value=reason, inline=False)
+    embed.add_field(
+        name="📂 Previous Reason",
+        value=reason,
+        inline=True,
+    )
+    embed.set_footer(text="TSB Sweden Security System")
+    embed.timestamp = datetime.now(timezone.utc)
 
     view = UnblacklistConfirmView(interaction, target_id)
     await interaction.response.send_message(embed=embed, view=view)
@@ -808,14 +859,33 @@ async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
         except Exception:
             pass
 
-    log_embed = create_record_embed(
-        title="USER UNBLACKLISTED RECORD",
-        interaction=interaction,
-        target_mention=f"<@{target_id}>",
-        target_id=target_id,
-        reason=reason,
-        avatar_url=member_avatar,
+    log_embed = discord.Embed(
+        title="✅ Blacklist Revoked",
+        description="A user's restrictions have been lifted, and access is restored.",
+        color=3066993,
     )
+    if member_avatar:
+        log_embed.set_thumbnail(url=member_avatar)
+    elif guild.icon:
+        log_embed.set_thumbnail(url=guild.icon.url)
+
+    log_embed.add_field(
+        name="👤 Target User",
+        value=f"<@{target_id}> (`{target_id}`)",
+        inline=False,
+    )
+    log_embed.add_field(
+        name="🛡️ Cleared By",
+        value=f"{interaction.user.mention}",
+        inline=True,
+    )
+    log_embed.add_field(
+        name="📂 Previous Reason",
+        value=reason,
+        inline=True,
+    )
+    log_embed.set_footer(text="TSB Sweden Security System")
+    log_embed.timestamp = datetime.now(timezone.utc)
 
     target_channel = get_target_channel(guild, "《➥》unblacklist")
     if target_channel:
