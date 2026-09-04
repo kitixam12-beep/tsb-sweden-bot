@@ -905,31 +905,6 @@ async def send(
             f"❌ Failed to send message: {e}", ephemeral=True
         )
 
-@bot.command(name="Tsbswelb")
-async def leaderboard(ctx):
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-
-    text = (
-        "### ┌「 Leaderboard 」┐\n"
-        "↳ ✦ **`[ Top 1. ]`** - <@1450925960093503544> — 2 high strong\n"
-        "↳ ✦ **`[ Top 2. ]`** - <@1198641113385410584> — 2 high strong\n"
-        "↳ ✦ **`[ Top 3. ]`** - <@777227138218328085> — 2 high strong\n"
-        "↳ ✦ **`[ Top 4. ]`** - <@954479020811091979> — 2 high strong\n"
-        "↳ ✦ **`[ Top 5. ]`** - <@1233127487127552123> — 2 high stable\n"
-        "↳ ✦ **`[ Top 6. ]`** - <@1358472975015477290> — 2 high stable\n"
-        "↳ ✦ **`[ Top 7. ]`** - <@1332851353311121600> — 2 high weak\n"
-        "↳ ✦ **`[ Top 8. ]`** - <@1067440028344660009> — 2 mid strong\n"
-        "↳ ✦ **`[ Top 9. ]`** - 「 VACANT 」\n"
-        "↳ ✦ **`[ Top 10. ]`** - 「 VACANT 」\n"
-        "└───────────────────────┘"
-    )
-    
-    await ctx.send(content=text)
-
-
 
 @bot.tree.command(name="giverank", description="Give or remove rank roles (stage, progression, extras) to a user")
 @app_commands.choices(action=[
@@ -967,4 +942,4 @@ async def giverank(
     await interaction.followup.send(f"✅ `giverank` command processed successfully for {user.mention}.", ephemeral=True)
 
 
-bot.run(os.getenv("DISCORD_TOKEN"))
+bot.run(os.getenv("TOKEN"))
