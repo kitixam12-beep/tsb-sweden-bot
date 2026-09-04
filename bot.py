@@ -88,6 +88,51 @@ def get_target_channel(guild: discord.Guild, channel_name: str) -> discord.TextC
     return None
 
 
+def create_record_embed(
+    title: str,
+    interaction: discord.Interaction,
+    target_mention: str,
+    target_id: int,
+    reason: str,
+    category: str = None,
+    avatar_url: str = None,
+    extra_fields: list = None,
+):
+    embed = discord.Embed(
+        title=f"⛔ {title}",
+        description="> **A security enforcement action has been successfully processed.**",
+        color=discord.Color.from_rgb(220, 20, 60),
+    )
+    if avatar_url:
+        embed.set_thumbnail(url=avatar_url)
+    elif interaction.guild.icon:
+        embed.set_thumbnail(url=interaction.guild.icon.url)
+
+    embed.add_field(
+        name="🎯 Target User",
+        value=f"{target_mention}\n`ID: {target_id}`",
+        inline=True,
+    )
+    embed.add_field(
+        name="👤 Moderator", value=f"{interaction.user.mention}", inline=True
+    )
+
+    if category:
+        embed.add_field(name="📂 Category", value=f"**{category}**", inline=True)
+
+    embed.add_field(name="📝 Reason", value=reason, inline=False)
+
+    if extra_fields:
+        for name, value, inline in extra_fields:
+            embed.add_field(name=name, value=value, inline=inline)
+
+    embed.set_footer(
+        text=f"Server ID: {interaction.guild.id}",
+        icon_url=interaction.guild.icon.url if interaction.guild.icon else None,
+    )
+    return embed
+
+
 class BlacklistConfirmView(discord.ui.View):
 
     def __init__(self, interaction: discord.Interaction, target_id: int):
@@ -239,6 +284,282 @@ async def on_member_join(member: discord.Member):
                 await member.add_roles(blacklist_role)
             except Exception:
                 pass
+
+
+@bot.tree.command(name="timeout", description="Timeout a member")
+@app_commands.describe(
+    member="The member to timeout",
+    duration="Duration (e.g. 10m, 1h, 1d)",
+    reason="Reason for the timeout",
+)
+async def timeout(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    duration: str,
+    reason: str,
+):
+    if not has_custom_role_or_admin(interaction):
+        await interaction.response.send_message(
+            "❌ You do not have permission to use this command.", ephemeral=True
+        )
+        return
+
+    if not check_hierarchy(interaction, member):
+        await interaction.response.send_message(
+            "You cannot timeout this member due to having an equal or higher role then you",
+            ephemeral=True,
+        )
+        return
+
+    seconds = 0
+    unit = duration[-1].lower()
+    val = duration[:-1]
+    if not val.isdigit():
+        await interaction.response.send_message(
+            "❌ Invalid duration format! Use numbers followed by s, m, h, or d (e.g., 10m).",
+            ephemeral=True,
+        )
+        return
+    num = int(val)
+    if unit == "s":
+        seconds = num
+    elif unit == "m":
+        seconds = num * 60
+    elif unit == "h":
+        seconds = num * 3600
+    elif unit == "d":
+        seconds = num * 86400
+    else:
+        await interaction.response.send_message(
+            "❌ Invalid unit! Use s, m, h, or d.", ephemeral=True
+        )
+        return
+
+    delta = timedelta(seconds=seconds)
+    try:
+        await member.timeout(delta, reason=reason)
+        avatar_url = member.avatar.url if member.avatar else None
+        embed = create_record_embed(
+            title="USER TIMEOUT RECORD",
+            interaction=interaction,
+            target_mention=member.mention,
+            target_id=member.id,
+            reason=reason,
+            avatar_url=avatar_url,
+            extra_fields=[("⏳ Duration", f"`{duration}`", True)],
+        )
+        await interaction.response.send_message(embed=embed)
+    except Exception as e:
+        await interaction.response.send_message(
+            f"❌ Failed to timeout member: {e}", ephemeral=True
+        )
+
+
+@bot.tree.command(name="warn", description="Warn a member")
+@app_commands.describe(
+    user="The user to warn (User or User ID)",
+    category="Category of the violation",
+    severity="Severity of the warn",
+    reason="Reason for the warning",
+)
+@app_commands.choices(
+    severity=[
+        app_commands.Choice(name="Minor warning", value="Minor warning"),
+        app_commands.Choice(name="Moderate warning", value="Moderate warning"),
+        app_commands.Choice(name="Severe warning", value="Severe warning"),
+        app_commands.Choice(name="Critical warning", value="Critical warning"),
+    ]
+)
+@app_commands.choices(
+    category=[
+        app_commands.Choice(name="Harassment", value="Harassment"),
+        app_commands.Choice(name="NSFW", value="NSFW"),
+        app_commands.Choice(name="Spam", value="Spam"),
+        app_commands.Choice(name="Advertising", value="Advertising"),
+        app_commands.Choice(name="Off-Topic", value="Off-Topic"),
+        app_commands.Choice(name="Hate Speech", value="Hate Speech"),
+        app_commands.Choice(name="Language", value="Language"),
+        app_commands.Choice(name="Privacy", value="Privacy"),
+        app_commands.Choice(name="ToS Violation", value="ToS Violation"),
+        app_commands.Choice(name="Staff Disrespect", value="Staff Disrespect"),
+        app_commands.Choice(name="Impersonation", value="Impersonation"),
+        app_commands.Choice(name="Toxicity", value="Toxicity"),
+        app_commands.Choice(name="Defamation", value="Defamation"),
+    ]
+)
+async def warn(
+    interaction: discord.Interaction,
+    user: str,
+    category: str,
+    severity: str,
+    reason: str,
+):
+    if not has_custom_role_or_admin(interaction):
+        await interaction.response.send_message(
+            "❌ You do not have permission to use this command.", ephemeral=True
+        )
+        return
+
+    clean_id = user.strip("<@!> ")
+    if not clean_id.isdigit():
+        await interaction.response.send_message(
+            "❌ Please provide a valid user or user ID.", ephemeral=True
+        )
+        return
+
+    user_id = int(clean_id)
+    target_member = interaction.guild.get_member(user_id)
+    if target_member and not check_hierarchy(interaction, target_member):
+        await interaction.response.send_message(
+            "You cannot warn this member due to having an equal or higher role then you",
+            ephemeral=True,
+        )
+        return
+
+    clean_expired_warns()
+    user_id_str = str(user_id)
+
+    if user_id_str not in warns_db:
+        warns_db[user_id_str] = []
+
+    now = datetime.now(timezone.utc)
+    expires_at = None
+
+    if severity == "Minor warning":
+        expires_at = (now + timedelta(days=15)).timestamp()
+        sev_display = "Minor warning"
+    elif severity == "Moderate warning":
+        expires_at = (now + timedelta(days=30)).timestamp()
+        sev_display = "Moderate warning"
+    elif severity == "Severe warning":
+        expires_at = (now + timedelta(days=40)).timestamp()
+        sev_display = "Severe warning"
+    elif severity == "Critical warning":
+        expires_at = None
+        sev_display = "Critical warning"
+
+    warn_id = random.randint(1000, 9999)
+    warn_entry = {
+        "id": warn_id,
+        "category": category,
+        "severity": sev_display,
+        "reason": reason,
+        "moderator": interaction.user.id,
+        "timestamp": int(now.timestamp()),
+        "expires_at": expires_at,
+    }
+    warns_db[user_id_str].append(warn_entry)
+    save_data_file(WARNS_FILE, warns_db)
+
+    active_count = len(warns_db[user_id_str])
+    avatar_url = (
+        target_member.avatar.url if target_member and target_member.avatar else None
+    )
+    issued_unix = int(now.timestamp())
+
+    embed = create_record_embed(
+        title="USER WARNING RECORD",
+        interaction=interaction,
+        target_mention=f"<@{user_id}>",
+        target_id=user_id,
+        reason=reason,
+        category=category,
+        avatar_url=avatar_url,
+        extra_fields=[
+            ("⚠️ Severity", f"`{sev_display}`", True),
+            (
+                "⏳ Expires",
+                f"<t:{issued_unix if expires_at is None else int(expires_at)}:R>",
+                True,
+            ),
+            ("🔸 Status", f"Strike `{active_count}` of `5` max", True),
+        ],
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="warnings", description="Check active warnings for a user")
+@app_commands.describe(user="The user or user ID to check")
+async def warnings(interaction: discord.Interaction, user: str):
+    if not has_custom_role_or_admin(interaction):
+        await interaction.response.send_message(
+            "❌ You do not have permission to use this command.", ephemeral=True
+        )
+        return
+
+    clean_id = user.strip("<@!> ")
+    user_id = int(clean_id)
+    user_warns = warns_db.get(str(user_id), [])
+    target_member = interaction.guild.get_member(user_id)
+    avatar_url = (
+        target_member.avatar.url if target_member and target_member.avatar else None
+    )
+
+    embed = discord.Embed(
+        title="🛡️ TSB SWEDEN — ACTIVE DOSSIER",
+        description=f"> **Record Status:** `{len(user_warns)} of 5 active strikes`",
+        color=discord.Color.from_rgb(220, 20, 60),
+    )
+    if avatar_url:
+        embed.set_thumbnail(url=avatar_url)
+
+    embed.add_field(
+        name="🎯 Target User", value=f"<@{user_id}>\n`ID: {user_id}`", inline=False
+    )
+    for idx, w in enumerate(user_warns, 1):
+        embed.add_field(
+            name=f"Infraction [{idx}] ({w.get('severity')})",
+            value=f"**Violation:** {w.get('reason')}\n**Category:** `{w.get('category')}`",
+            inline=False,
+        )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+@bot.tree.command(
+    name="removewarn", description="Remove a specific warning index from a user"
+)
+@app_commands.describe(
+    user="The user or user ID", warn_index="The warning number to remove"
+)
+async def removewarn(
+    interaction: discord.Interaction, user: str, warn_index: int
+):
+    if not has_custom_role_or_admin(interaction):
+        await interaction.response.send_message(
+            "❌ You do not have permission.", ephemeral=True
+        )
+        return
+
+    clean_id = user.strip("<@!> ")
+    if not clean_id.isdigit():
+        await interaction.response.send_message(
+            "❌ Invalid user ID.", ephemeral=True
+        )
+        return
+    user_id = int(clean_id)
+    user_id_str = str(user_id)
+
+    if user_id_str not in warns_db or not warns_db[user_id_str]:
+        await interaction.response.send_message(
+            "❌ This user has no active warnings to remove.", ephemeral=True
+        )
+        return
+
+    user_warns = warns_db[user_id_str]
+    if 1 <= warn_index <= len(user_warns):
+        removed = user_warns.pop(warn_index - 1)
+        if not user_warns:
+            del warns_db[user_id_str]
+        save_data_file(WARNS_FILE, warns_db)
+        await interaction.response.send_message(
+            f"✅ Successfully removed warning `#{warn_index}` (**{removed.get('reason')}**) for <@{user_id}>.",
+            ephemeral=True,
+        )
+    else:
+        await interaction.response.send_message(
+            f"❌ Invalid warning index. Choose between `1` and `{len(user_warns)}`.",
+            ephemeral=True,
+        )
 
 
 @bot.tree.command(
@@ -569,6 +890,124 @@ async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
         await target_channel.send(embed=log_embed)
     else:
         await interaction.channel.send(embed=log_embed)
+
+
+@bot.tree.command(
+    name="viewblacklistinfo",
+    description="View active blacklist details for a user",
+)
+@app_commands.describe(user="The user or user ID to check")
+async def viewblacklistinfo(interaction: discord.Interaction, user: str):
+    if not has_custom_role_or_admin(interaction):
+        await interaction.response.send_message(
+            "❌ You do not have permission.", ephemeral=True
+        )
+        return
+
+    clean_id = user.strip("<@!> ")
+    if not clean_id.isdigit():
+        await interaction.response.send_message(
+            "❌ Invalid user ID.", ephemeral=True
+        )
+        return
+    user_id_str = str(clean_id)
+
+    if user_id_str not in saved_data_db:
+        await interaction.response.send_message(
+            f"❌ User with ID `{clean_id}` is not currently blacklisted.",
+            ephemeral=True,
+        )
+        return
+
+    data = saved_data_db[user_id_str]
+    target_member = interaction.guild.get_member(int(clean_id))
+    avatar_url = (
+        target_member.avatar.url if target_member and target_member.avatar else None
+    )
+
+    embed = discord.Embed(
+        title="🛡️ BLACKLIST DOSSIER INFO",
+        color=discord.Color.from_rgb(220, 20, 60),
+    )
+    if avatar_url:
+        embed.set_thumbnail(url=avatar_url)
+
+    embed.add_field(
+        name="🎯 Target User",
+        value=f"<@{clean_id}>\n`ID: {clean_id}`",
+        inline=False,
+    )
+    embed.add_field(
+        name="📂 Category", value=f"**{data.get('category', 'N/A')}**", inline=True
+    )
+    embed.add_field(
+        name="📝 Reason", value=data.get("reason", "No reason provided"), inline=False
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+@bot.tree.command(
+    name="send", description="Send a custom message or announcement to a channel"
+)
+@app_commands.describe(
+    channel="Channel to send the message to", message="The message content"
+)
+async def send(
+    interaction: discord.Interaction,
+    channel: discord.TextChannel,
+    message: str,
+):
+    if not has_custom_role_or_admin(interaction):
+        await interaction.response.send_message(
+            "❌ You do not have permission.", ephemeral=True
+        )
+        return
+
+    try:
+        await channel.send(message)
+        await interaction.response.send_message(
+            f"✅ Successfully sent message to {channel.mention}.", ephemeral=True
+        )
+    except Exception as e:
+        await interaction.response.send_message(
+            f"❌ Failed to send message: {e}", ephemeral=True
+        )
+
+
+@bot.tree.command(name="giverank", description="Give or remove rank roles (stage, progression, extras) to a user")
+@app_commands.choices(action=[
+    app_commands.Choice(name="Rank", value="rank"),
+    app_commands.Choice(name="Unrank", value="unrank"),
+    app_commands.Choice(name="Rerank (remove old, add new)", value="rerank")
+])
+@app_commands.choices(stage=[
+    app_commands.Choice(name="Stage 0", value="Stage 0"),
+    app_commands.Choice(name="Stage 1", value="Stage 1"),
+    app_commands.Choice(name="Stage 2", value="Stage 2"),
+    app_commands.Choice(name="Stage 3", value="Stage 3"),
+    app_commands.Choice(name="Stage 4", value="Stage 4"),
+    app_commands.Choice(name="Stage 5", value="Stage 5")
+])
+async def giverank(
+    interaction: discord.Interaction, 
+    user: discord.Member, 
+    action: str, 
+    stage: str = None, 
+    prog1_low: bool = False, 
+    prog1_mid: bool = False, 
+    prog1_high: bool = False, 
+    prog2_weak: bool = False, 
+    prog2_stable: bool = False, 
+    prog2_strong: bool = False,
+    extra_low_app: bool = False,
+    extra_deflated: bool = False
+):
+    if not has_custom_role_or_admin(interaction):
+        await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True)
+    await interaction.followup.send(f"✅ `giverank` command processed successfully for {user.mention}.", ephemeral=True)
 
 
 bot.run(os.getenv("TOKEN"))
