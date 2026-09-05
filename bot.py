@@ -16,7 +16,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 DATA_FILE = "blacklists.json"
 WARNS_FILE = "warns.json"
-LEADERBOARD_FILE = "leaderboard.json"
 
 
 def load_data_file(filename):
@@ -36,7 +35,6 @@ def save_data_file(filename, data):
 
 saved_data_db = load_data_file(DATA_FILE)
 warns_db = load_data_file(WARNS_FILE)
-leaderboard_db = load_data_file(LEADERBOARD_FILE)
 
 
 def clean_expired_warns():
@@ -207,127 +205,6 @@ class UnblacklistConfirmView(discord.ui.View):
             await interaction.message.delete()
         except Exception:
             pass
-
-
-# --- Interactive Leaderboard Classes ---
-
-class LeaderboardEditModal(discord.ui.Modal, title="Manage Leaderboard Entry"):
-    user_id_input = discord.ui.TextInput(
-        label="User ID or Mention (Leave blank if Vacant)",
-        placeholder="e.g. 954479020811091979",
-        style=discord.TextStyle.short,
-        required=False
-    )
-    rank_input = discord.ui.TextInput(
-        label="Rank Position (1 to 10)",
-        placeholder="1",
-        style=discord.TextStyle.short,
-        required=True
-    )
-    status_input = discord.ui.TextInput(
-        label="Status",
-        placeholder="Challengable / Claimable",
-        style=discord.TextStyle.short,
-        required=True
-    )
-    region_input = discord.ui.TextInput(
-        label="Region (Leave blank if vacant)",
-        placeholder="EU",
-        style=discord.TextStyle.short,
-        required=False
-    )
-    stage_input = discord.ui.TextInput(
-        label="Stage / Requirement Info",
-        placeholder="2 high strong ⟡ 1 low app",
-        style=discord.TextStyle.short,
-        required=True
-    )
-    record_input = discord.ui.TextInput(
-        label="Wins / Losses (Format: wins:0 losses:0)",
-        placeholder="wins: 0 losses: 0",
-        style=discord.TextStyle.short,
-        required=False
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        try:
-            rank_num = int(self.rank_input.value.strip())
-            if not (1 <= rank_num <= 10):
-                raise ValueError()
-        except ValueError:
-            await interaction.response.send_message("❌ Rank position must be a number between 1 and 10.", ephemeral=True)
-            return
-
-        raw_uid = self.user_id_input.value.strip("<@!> ")
-        is_vacant = not raw_uid.isdigit()
-
-        leaderboard_db[str(rank_num)] = {
-            "is_vacant": is_vacant,
-            "user_id": raw_uid if not is_vacant else None,
-            "status": self.status_input.value.strip(),
-            "region": self.region_input.value.strip() if not is_vacant else "",
-            "stage": self.stage_input.value.strip(),
-            "wins_losses": self.record_input.value.strip() if not is_vacant else "",
-            "thumbnail": f"https://tr.rbxcdn.com/30DAY-AvatarHeadshot-{random.randint(10000000,99999999)}/150/150/AvatarHeadshot/Webp/noFilter" if not is_vacant else ""
-        }
-        save_data_file(LEADERBOARD_FILE, leaderboard_db)
-
-        embed = build_leaderboard_embed()
-        view = LeaderboardDashboardView()
-        await interaction.response.edit_message(embed=embed, view=view)
-
-
-class LeaderboardDashboardView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(label="Add / Update Slot", style=discord.ButtonStyle.green, emoji="✏️", custom_id="lb_edit_btn")
-    async def edit_player(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not has_custom_role_or_admin(interaction):
-            await interaction.response.send_message("❌ You do not have permission to modify the leaderboard.", ephemeral=True)
-            return
-        await interaction.response.send_modal(LeaderboardEditModal())
-
-    @discord.ui.button(label="Refresh", style=discord.ButtonStyle.secondary, emoji="🔄", custom_id="lb_refresh_btn")
-    async def refresh_board(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = build_leaderboard_embed()
-        await interaction.response.edit_message(embed=embed, view=self)
-
-
-def build_leaderboard_embed() -> discord.Embed:
-    embed = discord.Embed(
-        title="🏆 TSB Sweden Leaderboard (1-10)",
-        description="> **Active competitive rankings and open slots.**",
-        color=discord.Color.from_rgb(46, 204, 113)
-    )
-
-    # Ensure ranks 1 to 10 are always displayed neatly
-    for i in range(1, 11):
-        rank_str = str(i)
-        data = leaderboard_db.get(rank_str)
-
-        if not data or data.get("is_vacant", True):
-            stage_info = data.get("stage", "2 high weak" if i <= 8 else "2 mid strong") if data else ("2 high weak" if i <= 8 else "2 mid strong")
-            status_info = data.get("status", "Claimable") if data else "Claimable"
-            field_text = f"-# Status: {status_info}\n-# Required stage: {stage_info}"
-            embed.add_field(name=f"#{i} Vacant", value=field_text, inline=False)
-        else:
-            uid = data.get("user_id")
-            status = data.get("status", "Challengable")
-            region = data.get("region", "EU")
-            stage = data.get("stage", "2 high strong")
-            wl = data.get("wins_losses", "wins: 0 losses: 0")
-            
-            field_text = (
-                f"-# Status: {status}\n"
-                f"-# Region: {region}\n"
-                f"-# Stage: {stage}\n"
-                f"-# {wl}"
-            )
-            embed.add_field(name=f"#{i} <@{uid}>", value=field_text, inline=False)
-
-    embed.set_footer(text="TSB Sweden Competitive Ranking System")
-    return embed
 
 
 @bot.event
@@ -891,15 +768,6 @@ async def giverank(interaction: discord.Interaction, user: discord.Member, actio
         await interaction.response.send_message("❌ You do not have permission.", ephemeral=True)
         return
     await interaction.response.send_message(f"✅ Done for {user.mention}.", ephemeral=True)
-
-
-# --- Leaderboard Command ---
-
-@bot.tree.command(name="leaderboard", description="Display and manage the competitive leaderboard")
-async def leaderboard(interaction: discord.Interaction):
-    embed = build_leaderboard_embed()
-    view = LeaderboardDashboardView()
-    await interaction.response.send_message(embed=embed, view=view)
 
 
 bot.run(os.getenv("TOKEN"))
