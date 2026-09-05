@@ -16,6 +16,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 DATA_FILE = "blacklists.json"
 WARNS_FILE = "warns.json"
+LEADERBOARD_FILE = "leaderboard.json"
 
 
 def load_data_file(filename):
@@ -35,6 +36,7 @@ def save_data_file(filename, data):
 
 saved_data_db = load_data_file(DATA_FILE)
 warns_db = load_data_file(WARNS_FILE)
+leaderboard_db = load_data_file(LEADERBOARD_FILE)
 
 
 def clean_expired_warns():
@@ -238,6 +240,161 @@ class UnblacklistConfirmView(discord.ui.View):
             await interaction.message.delete()
         except Exception:
             pass
+
+
+# --- Interactive Leaderboard Classes ---
+
+class LeaderboardEditModal(discord.ui.Modal, title="Manage Leaderboard Entry"):
+    user_id_input = discord.ui.TextInput(
+        label="User ID or Mention",
+        placeholder="e.g. 123456789012345678",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    rank_input = discord.ui.TextInput(
+        label="Rank Position (e.g. 1, 2, 4)",
+        placeholder="1",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    status_input = discord.ui.TextInput(
+        label="Status",
+        placeholder="e.g. Challengable",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    region_input = discord.ui.TextInput(
+        label="Region",
+        placeholder="e.g. EU",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    stage_input = discord.ui.TextInput(
+        label="Stage / Info",
+        placeholder="e.g. 2 high stable",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    record_input = discord.ui.TextInput(
+        label="Wins / Losses (Format: Wins:X Losses:Y)",
+        placeholder="Wins: 0 Losses: 0",
+        style=discord.TextStyle.short,
+        required=True
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        raw_uid = self.user_id_input.value.strip("<@!> ")
+        if not raw_uid.isdigit():
+            await interaction.response.send_message("❌ Invalid user ID provided.", ephemeral=True)
+            return
+
+        try:
+            rank_num = int(self.rank_input.value.strip())
+        except ValueError:
+            await interaction.response.send_message("❌ Rank position must be a valid number.", ephemeral=True)
+            return
+
+        user_id_str = str(raw_uid)
+        leaderboard_db[user_id_str] = {
+            "rank": rank_num,
+            "status": self.status_input.value.strip(),
+            "region": self.region_input.value.strip(),
+            "stage": self.stage_input.value.strip(),
+            "wins_losses": self.record_input.value.strip()
+        }
+        save_data_file(LEADERBOARD_FILE, leaderboard_db)
+
+        # Regenerate updated leaderboard embed
+        embed = build_leaderboard_embed(interaction.guild)
+        view = LeaderboardDashboardView()
+        await interaction.response.edit_message(embed=embed, view=view)
+
+
+class LeaderboardRemoveModal(discord.ui.Modal, title="Remove User from Leaderboard"):
+    user_id_input = discord.ui.TextInput(
+        label="User ID to Remove",
+        placeholder="e.g. 123456789012345678",
+        style=discord.TextStyle.short,
+        required=True
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        raw_uid = self.user_id_input.value.strip("<@!> ")
+        if raw_uid in leaderboard_db:
+            leaderboard_db.pop(raw_uid)
+            save_data_file(LEADERBOARD_FILE, leaderboard_db)
+            await interaction.response.send_message(f"✅ Successfully removed user ID `{raw_uid}` from the leaderboard.", ephemeral=True)
+            
+            # Update original message
+            embed = build_leaderboard_embed(interaction.guild)
+            view = LeaderboardDashboardView()
+            try:
+                await interaction.message.edit(embed=embed, view=view)
+            except Exception:
+                pass
+        else:
+            await interaction.response.send_message(f"❌ User ID `{raw_uid}` was not found on the leaderboard.", ephemeral=True)
+
+
+class LeaderboardDashboardView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Add / Update Player", style=discord.ButtonStyle.green, emoji="✏️", custom_id="lb_edit_btn")
+    async def edit_player(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not has_custom_role_or_admin(interaction):
+            await interaction.response.send_message("❌ You do not have permission to modify the leaderboard.", ephemeral=True)
+            return
+        await interaction.response.send_modal(LeaderboardEditModal())
+
+    @discord.ui.button(label="Remove Player", style=discord.ButtonStyle.red, emoji="🗑️", custom_id="lb_remove_btn")
+    async def remove_player(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not has_custom_role_or_admin(interaction):
+            await interaction.response.send_message("❌ You do not have permission to modify the leaderboard.", ephemeral=True)
+            return
+        await interaction.response.send_modal(LeaderboardRemoveModal())
+
+    @discord.ui.button(label="Refresh", style=discord.ButtonStyle.secondary, emoji="🔄", custom_id="lb_refresh_btn")
+    async def refresh_board(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = build_leaderboard_embed(interaction.guild)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+
+def build_leaderboard_embed(guild: discord.Guild) -> discord.Embed:
+    embed = discord.Embed(
+        title="🏆 TSB SWEDEN — ACTIVE LEADERBOARD",
+        description="> **Current competitive rankings and standing details.**",
+        color=discord.Color.from_rgb(46, 204, 113)
+    )
+
+    if not leaderboard_db:
+        embed.add_field(name="No Players Registered", value="Click **Add / Update Player** below to add someone to the board.", inline=False)
+        return embed
+
+    # Sort entries by rank number ascending
+    sorted_entries = sorted(leaderboard_db.items(), key=lambda x: x[1].get("rank", 999))
+
+    for uid_str, data in sorted_entries:
+        rank = data.get("rank", "#")
+        status = data.get("status", "N/A")
+        region = data.get("region", "N/A")
+        stage = data.get("stage", "N/A")
+        wl = data.get("wins_losses", "Wins: 0 Losses: 0")
+
+        field_value = (
+            f"**Status:** {status}\n"
+            f"**Region:** {region}\n"
+            f"**Stage:** {stage}\n"
+            f"{wl}"
+        )
+        embed.add_field(
+            name=f"#{rank} <@{uid_str}>",
+            value=field_value,
+            inline=False
+        )
+
+    embed.set_footer(text="TSB Sweden Competitive Ranking System")
+    return embed
 
 
 @bot.event
@@ -612,7 +769,6 @@ async def blacklist(
 
     member_avatar = member.avatar.url if member and member.avatar else None
 
-    # Clean & Stylish Blacklist Embed Design (Server Restricted)
     embed = discord.Embed(
         title="🚫 User Blacklisted",
         description="> A user has been restricted from the server.",
@@ -786,7 +942,6 @@ async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
     member = guild.get_member(target_id)
     member_avatar = member.avatar.url if member and member.avatar else None
 
-    # Clean & Stylish Unblacklist Embed Design (Server Restriction Lifted)
     embed = discord.Embed(
         title="✅ Blacklist Revoked",
         description="> A user's server restrictions have been lifted and access has been restored.",
@@ -1008,6 +1163,15 @@ async def giverank(
 
     await interaction.response.defer(ephemeral=True)
     await interaction.followup.send(f"✅ `giverank` command processed successfully for {user.mention}.", ephemeral=True)
+
+
+# --- New Leaderboard Command ---
+
+@bot.tree.command(name="leaderboard", description="Display and manage the competitive leaderboard")
+async def leaderboard(interaction: discord.Interaction):
+    embed = build_leaderboard_embed(interaction.guild)
+    view = LeaderboardDashboardView()
+    await interaction.response.send_message(embed=embed, view=view)
 
 
 bot.run(os.getenv("TOKEN"))
