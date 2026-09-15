@@ -241,11 +241,16 @@ class UnblacklistConfirmView(discord.ui.View):
 async def on_ready():
     clean_expired_warns()
     check_warn_expiry.start()
-    try:
-        synced = await bot.tree.sync()
-        print(f"Successfully synced {len(synced)} global commands!")
-    except Exception as e:
-        print(f"Error syncing commands: {e}")
+    
+    # Instant command sync directly to all joined servers
+    for guild in bot.guilds:
+        try:
+            bot.tree.copy_global_to(guild=guild)
+            synced = await bot.tree.sync(guild=guild)
+            print(f"Instantly synced {len(synced)} commands to server: {guild.name}")
+        except Exception as e:
+            print(f"Failed to sync to {guild.name}: {e}")
+
     print(f"Bot is online as {bot.user}!")
 
 
