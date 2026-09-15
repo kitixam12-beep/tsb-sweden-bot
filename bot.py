@@ -113,54 +113,10 @@ async def send_mod_log(guild: discord.Guild, embed: discord.Embed):
     log_channel = get_log_channel(guild, "mod_logs")
     if log_channel:
         try:
+            embed.color = 0xFF0000
             await log_channel.send(embed=embed)
         except Exception:
             pass
-
-
-def create_record_embed(
-    title: str,
-    interaction: discord.Interaction,
-    target_mention: str,
-    target_id: int,
-    reason: str,
-    category: str = None,
-    avatar_url: str = None,
-    extra_fields: list = None,
-):
-    embed = discord.Embed(
-        title=f"⛔ {title}",
-        description="> **A security enforcement action has been successfully processed.**",
-        color=discord.Color.from_rgb(220, 20, 60),
-    )
-    if avatar_url:
-        embed.set_thumbnail(url=avatar_url)
-    elif interaction.guild.icon:
-        embed.set_thumbnail(url=interaction.guild.icon.url)
-
-    embed.add_field(
-        name="🎯 Target User",
-        value=f"{target_mention}\n`ID: {target_id}`",
-        inline=True,
-    )
-    embed.add_field(
-        name="👤 Moderator", value=f"{interaction.user.mention}", inline=True
-    )
-
-    if category:
-        embed.add_field(name="📂 Category", value=f"**{category}**", inline=True)
-
-    embed.add_field(name="📝 Reason", value=reason, inline=False)
-
-    if extra_fields:
-        for name, value, inline in extra_fields:
-            embed.add_field(name=name, value=value, inline=inline)
-
-    embed.set_footer(
-        text=f"Server ID: {interaction.guild.id}",
-        icon_url=interaction.guild.icon.url if interaction.guild.icon else None,
-    )
-    return embed
 
 
 class BlacklistConfirmView(discord.ui.View):
@@ -242,7 +198,6 @@ async def on_ready():
     clean_expired_warns()
     check_warn_expiry.start()
     
-    # Instant command sync directly to all joined servers
     for guild in bot.guilds:
         try:
             bot.tree.copy_global_to(guild=guild)
@@ -301,18 +256,16 @@ async def on_message_delete(message: discord.Message):
 
     embed = discord.Embed(
         title="🗑️ Message Deleted",
-        color=discord.Color.red(),
+        description=f"Message sent by {message.author.mention} deleted in {message.channel.mention}",
+        color=0xFF0000,
         timestamp=datetime.now(timezone.utc)
     )
-    embed.add_field(name="Author", value=f"{message.author.mention} (`{message.author.id}`)", inline=True)
-    embed.add_field(name="Channel", value=message.channel.mention, inline=True)
     embed.add_field(name="Content", value=message.content or "*No text content*", inline=False)
-
     if message.attachments:
         files_info = "\n".join([f"[{a.filename}]({a.url})" for a in message.attachments])
         embed.add_field(name="Attachments", value=files_info, inline=False)
 
-    embed.set_footer(text=f"Message ID: {message.id}")
+    embed.set_footer(text=f"User ID: {message.author.id} • Message ID: {message.id}")
     await log_channel.send(embed=embed)
 
 
@@ -326,17 +279,14 @@ async def on_message_edit(before: discord.Message, after: discord.Message):
         return
 
     embed = discord.Embed(
-        title="✏️ Message Edited",
-        color=discord.Color.gold(),
+        description=f"Message from {before.author.mention} edited in {before.channel.mention}.\n[Jump to Message]({after.jump_url})",
+        color=0xFF0000,
         timestamp=datetime.now(timezone.utc)
     )
-    embed.add_field(name="Author", value=f"{before.author.mention} (`{before.author.id}`)", inline=True)
-    embed.add_field(name="Channel", value=before.channel.mention, inline=True)
+    embed.set_author(name=f"{before.author}", icon_url=before.author.display_avatar.url)
     embed.add_field(name="Before", value=before.content or "*Empty*", inline=False)
     embed.add_field(name="After", value=after.content or "*Empty*", inline=False)
-    embed.add_field(name="Jump Link", value=f"[Go to Message]({after.jump_url})", inline=False)
-
-    embed.set_footer(text=f"Message ID: {before.id}")
+    embed.set_footer(text=f"User ID: {before.author.id} • Message ID: {before.id}")
     await log_channel.send(embed=embed)
 
 
@@ -344,10 +294,12 @@ async def on_message_edit(before: discord.Message, after: discord.Message):
 async def on_member_ban(guild: discord.Guild, user: discord.User):
     embed = discord.Embed(
         title="🔨 Member Banned",
-        color=discord.Color.dark_red(),
+        description=f"{user.mention} has been banned",
+        color=0xFF0000,
         timestamp=datetime.now(timezone.utc)
     )
-    embed.add_field(name="Target User", value=f"{user.mention} (`{user.id}`)", inline=False)
+    embed.add_field(name="User ID", value=str(user.id), inline=True)
+    embed.set_footer(text=f"User ID: {user.id}")
     await send_mod_log(guild, embed)
 
 
@@ -355,10 +307,12 @@ async def on_member_ban(guild: discord.Guild, user: discord.User):
 async def on_member_unban(guild: discord.Guild, user: discord.User):
     embed = discord.Embed(
         title="🔓 Member Unbanned",
-        color=discord.Color.green(),
+        description=f"{user.mention} has been unbanned",
+        color=0xFF0000,
         timestamp=datetime.now(timezone.utc)
     )
-    embed.add_field(name="Target User", value=f"{user.mention} (`{user.id}`)", inline=False)
+    embed.add_field(name="User ID", value=str(user.id), inline=True)
+    embed.set_footer(text=f"User ID: {user.id}")
     await send_mod_log(guild, embed)
 
 
@@ -415,7 +369,7 @@ async def timeout(
     unit = duration[-1].lower()
     val = duration[:-1]
     if not val.isdigit():
-        await interaction.response.send_message("❌ Invalid duration format! Use numbers followed by s, m, h, or d (e.g., 10m).", ephemeral=True)
+        await interaction.response.send_message("❌ Invalid duration format!", ephemeral=True)
         return
     num = int(val)
     if unit == "s":
@@ -431,18 +385,23 @@ async def timeout(
         return
 
     delta = timedelta(seconds=seconds)
+    until_time = datetime.now(timezone.utc) + delta
+
     try:
         await member.timeout(delta, reason=reason)
-        avatar_url = member.avatar.url if member.avatar else None
-        embed = create_record_embed(
-            title="USER TIMEOUT RECORD",
-            interaction=interaction,
-            target_mention=member.mention,
-            target_id=member.id,
-            reason=reason,
-            avatar_url=avatar_url,
-            extra_fields=[("⏳ Duration", f"`{duration}`", True)],
+        
+        embed = discord.Embed(
+            title="⏱️ Member Timed Out",
+            description=f"{member.mention} has been timed out",
+            color=0xFF0000,
+            timestamp=datetime.now(timezone.utc)
         )
+        embed.add_field(name="User ID", value=str(member.id), inline=True)
+        embed.add_field(name="Duration", value=f"{duration}", inline=True)
+        embed.add_field(name="Until", value=f"<t:{int(until_time.timestamp())}:F>", inline=False)
+        embed.add_field(name="Responsible Moderator", value=interaction.user.mention, inline=False)
+        embed.add_field(name="Reason", value=reason, inline=False)
+
         await interaction.response.send_message(embed=embed)
         await send_mod_log(interaction.guild, embed)
     except Exception as e:
@@ -514,22 +473,16 @@ async def warn(
 
     if severity == "Minor warning":
         expires_at = (now + timedelta(days=15)).timestamp()
-        sev_display = "Minor warning"
     elif severity == "Moderate warning":
         expires_at = (now + timedelta(days=30)).timestamp()
-        sev_display = "Moderate warning"
     elif severity == "Severe warning":
         expires_at = (now + timedelta(days=40)).timestamp()
-        sev_display = "Severe warning"
-    elif severity == "Critical warning":
-        expires_at = None
-        sev_display = "Critical warning"
 
     warn_id = random.randint(1000, 9999)
     warn_entry = {
         "id": warn_id,
         "category": category,
-        "severity": sev_display,
+        "severity": severity,
         "reason": reason,
         "moderator": interaction.user.id,
         "timestamp": int(now.timestamp()),
@@ -538,24 +491,17 @@ async def warn(
     warns_db[user_id_str].append(warn_entry)
     save_data_file(WARNS_FILE, warns_db)
 
-    active_count = len(warns_db[user_id_str])
-    avatar_url = target_member.avatar.url if target_member and target_member.avatar else None
-    issued_unix = int(now.timestamp())
-
-    embed = create_record_embed(
-        title="USER WARNING RECORD",
-        interaction=interaction,
-        target_mention=f"<@{user_id}>",
-        target_id=user_id,
-        reason=reason,
-        category=category,
-        avatar_url=avatar_url,
-        extra_fields=[
-            ("⚠️ Severity", f"`{sev_display}`", True),
-            ("⏳ Expires", f"<t:{issued_unix if expires_at is None else int(expires_at)}:R>", True),
-            ("🔸 Status", f"Strike `{active_count}` of `5` max", True),
-        ],
+    embed = discord.Embed(
+        title="⚠️ Member Warned",
+        description=f"<@{user_id}> has been warned",
+        color=0xFF0000,
+        timestamp=datetime.now(timezone.utc)
     )
+    embed.add_field(name="User ID", value=str(user_id), inline=True)
+    embed.add_field(name="Responsible Moderator", value=interaction.user.mention, inline=True)
+    embed.add_field(name="Severity", value=severity, inline=False)
+    embed.add_field(name="Reason", value=reason, inline=False)
+
     await interaction.response.send_message(embed=embed)
     await send_mod_log(interaction.guild, embed)
 
@@ -570,22 +516,18 @@ async def warnings(interaction: discord.Interaction, user: str):
     clean_id = user.strip("<@!> ")
     user_id = int(clean_id)
     user_warns = warns_db.get(str(user_id), [])
-    target_member = interaction.guild.get_member(user_id)
-    avatar_url = target_member.avatar.url if target_member and target_member.avatar else None
 
     embed = discord.Embed(
-        title="🛡️ TSB SWEDEN — ACTIVE DOSSIER",
-        description=f"> **Record Status:** `{len(user_warns)} of 5 active strikes`",
-        color=discord.Color.from_rgb(220, 20, 60),
+        title="📋 Warning Records",
+        description=f"Active warnings for <@{user_id}>",
+        color=None,
+        timestamp=datetime.now(timezone.utc)
     )
-    if avatar_url:
-        embed.set_thumbnail(url=avatar_url)
-
-    embed.add_field(name="🎯 Target User", value=f"<@{user_id}>\n`ID: {user_id}`", inline=False)
+    embed.add_field(name="User ID", value=str(user_id), inline=False)
     for idx, w in enumerate(user_warns, 1):
         embed.add_field(
-            name=f"Infraction [{idx}] ({w.get('severity')})",
-            value=f"**Violation:** {w.get('reason')}\n**Category:** `{w.get('category')}`",
+            name=f"Infraction #{idx} ({w.get('severity')})",
+            value=f"**Reason:** {w.get('reason')}\n**Category:** {w.get('category')}",
             inline=False,
         )
     await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -620,7 +562,7 @@ async def removewarn(interaction: discord.Interaction, user: str, warn_index: in
             ephemeral=True,
         )
     else:
-        await interaction.response.send_message(f"❌ Invalid warning index. Choose between `1` and `{len(user_warns)}`.", ephemeral=True)
+        await interaction.response.send_message(f"❌ Invalid warning index.", ephemeral=True)
 
 
 @bot.tree.command(name="blacklist", description="Blacklist a member by user or user ID")
@@ -655,24 +597,16 @@ async def blacklist(
         await interaction.response.send_message("You cannot blacklist this member due to having an equal or higher role then yours", ephemeral=True)
         return
 
-    member_avatar = member.avatar.url if member and member.avatar else None
-
     embed = discord.Embed(
-        title="🚫 User Blacklisted",
-        description="> A user has been restricted from the server.",
-        color=16730183,
+        title="🚫 Member Blacklisted",
+        description=f"<@{target_id}> has been blacklisted",
+        color=0x000000,
+        timestamp=datetime.now(timezone.utc)
     )
-    if member_avatar:
-        embed.set_thumbnail(url=member_avatar)
-    elif guild.icon:
-        embed.set_thumbnail(url=guild.icon.url)
-
-    embed.add_field(name="👤 Target User", value=f"<@{target_id}>\n`ID: {target_id}`", inline=True)
-    embed.add_field(name="🛡️ Moderated By", value=f"{interaction.user.mention}", inline=True)
-    embed.add_field(name="📂 Category", value=f"**{category}**", inline=False)
-    embed.add_field(name="📝 Reason", value=f"> {reason}", inline=False)
-    embed.set_footer(text="TSB Sweden Security System")
-    embed.timestamp = datetime.now(timezone.utc)
+    embed.add_field(name="User ID", value=str(target_id), inline=True)
+    embed.add_field(name="Responsible Moderator", value=interaction.user.mention, inline=True)
+    embed.add_field(name="Category", value=category, inline=False)
+    embed.add_field(name="Reason", value=reason, inline=False)
 
     view = BlacklistConfirmView(interaction, target_id)
     await interaction.response.send_message(embed=embed, view=view)
@@ -707,40 +641,16 @@ async def blacklist(
         if blacklist_role:
             await member.add_roles(blacklist_role)
 
-        try:
-            dm_text = (
-                f"🚫 You have been **blacklisted** from **{guild.name}**\n\n"
-                f"**Reason:** {reason}\n"
-                f"**Category:** {category}\n\n"
-            )
-            if category == "Appealable⚖️":
-                dm_text += "⚖️ This blacklist is appealable."
-            elif category == "Bail only💰":
-                dm_text += "💰 This blacklist can be resolved via bail only."
-            else:
-                dm_text += "⛔ This blacklist is permanent."
-
-            target_user_obj = member if isinstance(member, discord.User) else await bot.fetch_user(target_id)
-            await target_user_obj.send(dm_text)
-        except Exception:
-            pass
-
     log_embed = discord.Embed(
-        title="🚫 User Blacklisted",
-        description="> A user has been restricted from the server.",
-        color=16730183,
+        title="🚫 Member Blacklisted",
+        description=f"<@{target_id}> has been blacklisted",
+        color=0x000000,
+        timestamp=datetime.now(timezone.utc)
     )
-    if member_avatar:
-        log_embed.set_thumbnail(url=member_avatar)
-    elif guild.icon:
-        log_embed.set_thumbnail(url=guild.icon.url)
-
-    log_embed.add_field(name="👤 Target User", value=f"<@{target_id}>\n`ID: {target_id}`", inline=True)
-    log_embed.add_field(name="🛡️ Moderated By", value=f"{interaction.user.mention}", inline=True)
-    log_embed.add_field(name="📂 Category", value=f"**{category}**", inline=False)
-    log_embed.add_field(name="📝 Reason", value=f"> {reason}", inline=False)
-    log_embed.set_footer(text="TSB Sweden Security System")
-    log_embed.timestamp = datetime.now(timezone.utc)
+    log_embed.add_field(name="User ID", value=str(target_id), inline=True)
+    log_embed.add_field(name="Responsible Moderator", value=interaction.user.mention, inline=True)
+    log_embed.add_field(name="Category", value=category, inline=False)
+    log_embed.add_field(name="Reason", value=reason, inline=False)
 
     target_channel = get_target_channel(guild, "《➦》blacklist")
     if target_channel:
@@ -781,23 +691,16 @@ async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
 
     guild = interaction.guild
     member = guild.get_member(target_id)
-    member_avatar = member.avatar.url if member and member.avatar else None
 
     embed = discord.Embed(
-        title="✅ Blacklist Revoked",
-        description="> A user's server restrictions have been lifted and access has been restored.",
-        color=3066993,
+        title="✅ Member Unblacklisted",
+        description=f"<@{target_id}> has been unblacklisted",
+        color=0x000000,
+        timestamp=datetime.now(timezone.utc)
     )
-    if member_avatar:
-        embed.set_thumbnail(url=member_avatar)
-    elif guild.icon:
-        embed.set_thumbnail(url=guild.icon.url)
-
-    embed.add_field(name="👤 Target User", value=f"<@{target_id}>\n`ID: {target_id}`", inline=True)
-    embed.add_field(name="🛡️ Cleared By", value=f"{interaction.user.mention}", inline=True)
-    embed.add_field(name="📝 Reason", value=f"> {reason}", inline=False)
-    embed.set_footer(text="TSB Sweden Security System")
-    embed.timestamp = datetime.now(timezone.utc)
+    embed.add_field(name="User ID", value=str(target_id), inline=True)
+    embed.add_field(name="Responsible Moderator", value=interaction.user.mention, inline=True)
+    embed.add_field(name="Reason", value=reason, inline=False)
 
     view = UnblacklistConfirmView(interaction, target_id)
     await interaction.response.send_message(embed=embed, view=view)
@@ -822,32 +725,15 @@ async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
         except Exception:
             pass
 
-        try:
-            unbl_text = (
-                f"✅ You have been **UNBLACKLISTED** from **{guild.name}**\n\n"
-                f"**Reason:** {reason}\n\n"
-                "Your roles have been restored. Welcome back!"
-            )
-            target_user_obj = member if isinstance(member, discord.User) else await bot.fetch_user(target_id)
-            await target_user_obj.send(unbl_text)
-        except Exception:
-            pass
-
     log_embed = discord.Embed(
-        title="✅ Blacklist Revoked",
-        description="> A user's server restrictions have been lifted and access has been restored.",
-        color=3066993,
+        title="✅ Member Unblacklisted",
+        description=f"<@{target_id}> has been unblacklisted",
+        color=0x000000,
+        timestamp=datetime.now(timezone.utc)
     )
-    if member_avatar:
-        log_embed.set_thumbnail(url=member_avatar)
-    elif guild.icon:
-        log_embed.set_thumbnail(url=guild.icon.url)
-
-    log_embed.add_field(name="👤 Target User", value=f"<@{target_id}>\n`ID: {target_id}`", inline=True)
-    log_embed.add_field(name="🛡️ Cleared By", value=f"{interaction.user.mention}", inline=True)
-    log_embed.add_field(name="📝 Reason", value=f"> {reason}", inline=False)
-    log_embed.set_footer(text="TSB Sweden Security System")
-    log_embed.timestamp = datetime.now(timezone.utc)
+    log_embed.add_field(name="User ID", value=str(target_id), inline=True)
+    log_embed.add_field(name="Responsible Moderator", value=interaction.user.mention, inline=True)
+    log_embed.add_field(name="Reason", value=reason, inline=False)
 
     target_channel = get_target_channel(guild, "《➥》unblacklist")
     if target_channel:
@@ -876,19 +762,16 @@ async def viewblacklistinfo(interaction: discord.Interaction, user: str):
         return
 
     data = saved_data_db[user_id_str]
-    target_member = interaction.guild.get_member(int(clean_id))
-    avatar_url = target_member.avatar.url if target_member and target_member.avatar else None
 
     embed = discord.Embed(
-        title="🛡️ BLACKLIST DOSSIER INFO",
-        color=discord.Color.from_rgb(220, 20, 60),
+        title="ℹ️ Blacklist Information",
+        description=f"Record for <@{clean_id}>",
+        color=0x000000,
+        timestamp=datetime.now(timezone.utc)
     )
-    if avatar_url:
-        embed.set_thumbnail(url=avatar_url)
-
-    embed.add_field(name="🎯 Target User", value=f"<@{clean_id}>\n`ID: {clean_id}`", inline=False)
-    embed.add_field(name="📂 Category", value=f"**{data.get('category', 'N/A')}**", inline=True)
-    embed.add_field(name="📝 Reason", value=data.get("reason", "No reason provided"), inline=False)
+    embed.add_field(name="User ID", value=clean_id, inline=True)
+    embed.add_field(name="Category", value=data.get("category", "N/A"), inline=True)
+    embed.add_field(name="Reason", value=data.get("reason", "No reason provided"), inline=False)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
@@ -914,4 +797,4 @@ async def giverank(interaction: discord.Interaction, user: discord.Member, actio
     await interaction.response.send_message(f"✅ Done for {user.mention}.", ephemeral=True)
 
 
-bot.run(os.getenv("TOKEN"))
+bot.run("YOUR_BOT_TOKEN_HERE")
