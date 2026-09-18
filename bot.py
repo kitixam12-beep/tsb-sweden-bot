@@ -808,7 +808,7 @@ async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
     log_embed.add_field(name="Responsible Moderator", value=interaction.user.mention, inline=True)
     log_embed.add_field(name="Reason", value=reason, inline=False)
 
-   target_channel = get_target_channel(guild, "《➥》unblacklist")
+    target_channel = get_target_channel(guild, "《➥》unblacklist")
     if target_channel:
         await target_channel.send(embed=log_embed)
     else:
