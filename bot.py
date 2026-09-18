@@ -266,15 +266,16 @@ async def on_member_update(before: discord.Member, after: discord.Member):
                 pass
 
             embed = discord.Embed(
-                title="🔇 Member Muted",
-                description=f"{after.mention} has been timed out.",
+                title="🔇 MEMBER TIMED OUT RECORD",
+                description="A member timeout enforcement action has been successfully processed.",
                 color=0xFF0000,
                 timestamp=datetime.now(timezone.utc)
             )
-            embed.add_field(name="Target User", value=f"{after.mention}\nID: `{after.id}`", inline=True)
-            embed.add_field(name="Responsible Moderator", value=moderator, inline=True)
-            embed.add_field(name="Duration", value=duration_str, inline=False)
-            embed.add_field(name="Expires At", value=f"<t:{int(after.timed_out_until.timestamp())}:F>", inline=False)
+            embed.add_field(name="🎯 Target User", value=f"{after.mention}\nID: `{after.id}`", inline=True)
+            embed.add_field(name="👤 Moderator", value=moderator, inline=True)
+            embed.add_field(name="⏱️ Duration", value=duration_str, inline=False)
+            embed.add_field(name="📅 Expires At", value=f"<t:{int(after.timed_out_until.timestamp())}:F>", inline=False)
+            embed.add_field(name="🇸🇪 Server ID", value=f"`{guild.id}`", inline=False)
             await send_mod_log(guild, embed)
 
     if user_id_str in saved_data_db:
@@ -786,6 +787,50 @@ async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
     embed.add_field(name="Category", value=data.get("category", "N/A"), inline=True)
     embed.add_field(name="Reason", value=data.get("reason", "N/A"), inline=False)
     
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    view = UnblacklistConfirmView(interaction, target_id)
+    await interaction.response.send_message(embed=embed, view=view)
+    await view.wait()
 
-bot.run("DIN_FAKTISKA_TOKEN")
+    if not view.value:
+        return
+
+    saved_data_db.pop(target_id_str)
+    save_data_file(DATA_FILE, saved_data_db)
+
+    if member:
+        try:
+            old_nick = data.get("old_nickname", None)
+            await member.edit(nick=old_nick)
+            
+            role_ids = data.get("roles", [])
+            roles_to_add = [guild.get_role(r_id) for r_id in role_ids if guild.get_role(r_id)]
+            
+            blacklist_role = discord.utils.get(guild.roles, name="Blacklisted")
+            if blacklist_role and blacklist_role in member.roles:
+                await member.remove_roles(blacklist_role)
+            
+            if roles_to_add:
+                await member.add_roles(*roles_to_add)
+        except Exception:
+            pass
+
+    log_embed = discord.Embed(
+        title="🔓 USER UNBLACKLISTED RECORD",
+        description="A security enforcement removal action has been successfully processed.",
+        color=0x00FF00,
+        timestamp=datetime.now(timezone.utc)
+    )
+    log_embed.add_field(name="🎯 Target User", value=f"<@{target_id}>\nID: `{target_id}`", inline=True)
+    log_embed.add_field(name="👤 Moderator", value=interaction.user.mention, inline=True)
+    log_embed.add_field(name="📝 Reason", value=reason, inline=False)
+    log_embed.add_field(name="🇸🇪 Server ID", value=f"`{guild.id}`", inline=False)
+
+    target_channel = get_target_channel(guild, "《➥》unblacklist")
+    if target_channel:
+        await target_channel.send(embed=log_embed)
+    else:
+        await interaction.channel.send(embed=log_embed)
+
+    await send_mod_log(guild, log_embed)
+
+bot.run("DITT_TOKEN_HÄR")
