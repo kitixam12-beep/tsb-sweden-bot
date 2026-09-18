@@ -19,7 +19,6 @@ DATA_FILE = "blacklists.json"
 WARNS_FILE = "warns.json"
 LOGS_FILE = "log_channels.json"
 
-
 def load_data_file(filename):
     if os.path.exists(filename):
         try:
@@ -29,16 +28,13 @@ def load_data_file(filename):
             return {}
     return {}
 
-
 def save_data_file(filename, data):
     with open(filename, "w") as f:
         json.dump(data, f, indent=4)
 
-
 saved_data_db = load_data_file(DATA_FILE)
 warns_db = load_data_file(WARNS_FILE)
 log_channels_db = load_data_file(LOGS_FILE)
-
 
 def clean_expired_warns():
     now = datetime.now(timezone.utc).timestamp()
@@ -59,7 +55,6 @@ def clean_expired_warns():
     if updated:
         save_data_file(WARNS_FILE, warns_db)
 
-
 def has_custom_role_or_admin(interaction: discord.Interaction) -> bool:
     if interaction.user.guild_permissions.administrator:
         return True
@@ -75,7 +70,6 @@ def has_custom_role_or_admin(interaction: discord.Interaction) -> bool:
     }
     return any(role.id in allowed_role_ids for role in interaction.user.roles)
 
-
 def check_hierarchy(interaction: discord.Interaction, target: discord.Member) -> bool:
     if interaction.user == interaction.guild.owner:
         return True
@@ -83,13 +77,11 @@ def check_hierarchy(interaction: discord.Interaction, target: discord.Member) ->
         return False
     return interaction.user.top_role > target.top_role
 
-
 def get_target_channel(guild: discord.Guild, channel_name: str) -> discord.TextChannel:
     for channel in guild.text_channels:
         if channel.name.lower() == channel_name.lower():
             return channel
     return None
-
 
 def get_log_channel(guild: discord.Guild, log_type: str):
     guild_id_str = str(guild.id)
@@ -109,7 +101,6 @@ def get_log_channel(guild: discord.Guild, log_type: str):
             return ch
     return None
 
-
 async def send_mod_log(guild: discord.Guild, embed: discord.Embed):
     log_channel = get_log_channel(guild, "mod_logs")
     if log_channel:
@@ -117,7 +108,6 @@ async def send_mod_log(guild: discord.Guild, embed: discord.Embed):
             await log_channel.send(embed=embed)
         except Exception:
             pass
-
 
 class BlacklistConfirmView(discord.ui.View):
     def __init__(self, interaction: discord.Interaction, target_id: int):
@@ -157,7 +147,6 @@ class BlacklistConfirmView(discord.ui.View):
         except Exception:
             pass
 
-
 class UnblacklistConfirmView(discord.ui.View):
     def __init__(self, interaction: discord.Interaction, target_id: int):
         super().__init__(timeout=60)
@@ -192,7 +181,6 @@ class UnblacklistConfirmView(discord.ui.View):
         except Exception:
             pass
 
-
 @bot.event
 async def on_ready():
     clean_expired_warns()
@@ -208,11 +196,9 @@ async def on_ready():
 
     print(f"Bot is online as {bot.user}!")
 
-
 @tasks.loop(minutes=5)
 async def check_warn_expiry():
     clean_expired_warns()
-
 
 @bot.event
 async def on_member_join(member: discord.Member):
@@ -251,13 +237,11 @@ async def on_member_join(member: discord.Member):
             except Exception:
                 pass
 
-
 @bot.event
 async def on_member_update(before: discord.Member, after: discord.Member):
     user_id_str = str(after.id)
     guild = after.guild
 
-    # --- MUTE / TIMEOUT LOGGING ---
     if before.timed_out_until != after.timed_out_until:
         if after.timed_out_until is not None:
             duration_delta = after.timed_out_until - discord.utils.utcnow()
@@ -293,7 +277,6 @@ async def on_member_update(before: discord.Member, after: discord.Member):
             embed.add_field(name="Expires At", value=f"<t:{int(after.timed_out_until.timestamp())}:F>", inline=False)
             await send_mod_log(guild, embed)
 
-    # --- BLACKLIST ROLLEN SKYDD ---
     if user_id_str in saved_data_db:
         blacklist_role = discord.utils.get(guild.roles, name="Blacklisted")
         if blacklist_role and blacklist_role in before.roles and blacklist_role not in after.roles:
@@ -315,7 +298,6 @@ async def on_member_update(before: discord.Member, after: discord.Member):
             except Exception:
                 pass
 
-    # --- FARLIGA BEHÖRIGHETER ---
     added_roles = [role for role in after.roles if role not in before.roles]
     if added_roles:
         dangerous_perms_map = {
@@ -358,7 +340,6 @@ async def on_member_update(before: discord.Member, after: discord.Member):
 
                 await send_mod_log(guild, embed)
 
-
 @bot.event
 async def on_message_delete(message: discord.Message):
     if message.author.bot or not message.guild:
@@ -382,7 +363,6 @@ async def on_message_delete(message: discord.Message):
     embed.set_footer(text=f"User ID: {message.author.id} • Message ID: {message.id}")
     await log_channel.send(embed=embed)
 
-
 @bot.event
 async def on_message_edit(before: discord.Message, after: discord.Message):
     if before.author.bot or not before.guild or before.content == after.content:
@@ -403,7 +383,6 @@ async def on_message_edit(before: discord.Message, after: discord.Message):
     embed.set_footer(text=f"User ID: {before.author.id} • Message ID: {before.id}")
     await log_channel.send(embed=embed)
 
-
 @bot.event
 async def on_member_ban(guild: discord.Guild, user: discord.User):
     embed = discord.Embed(
@@ -416,7 +395,6 @@ async def on_member_ban(guild: discord.Guild, user: discord.User):
     embed.set_footer(text=f"User ID: {user.id}")
     await send_mod_log(guild, embed)
 
-
 @bot.event
 async def on_member_unban(guild: discord.Guild, user: discord.User):
     embed = discord.Embed(
@@ -428,7 +406,6 @@ async def on_member_unban(guild: discord.Guild, user: discord.User):
     embed.add_field(name="User ID", value=str(user.id), inline=True)
     embed.set_footer(text=f"User ID: {user.id}")
     await send_mod_log(guild, embed)
-
 
 @bot.tree.command(name="setlogchannel", description="Set log channels for moderation or message events")
 @app_commands.describe(log_type="The type of logs to configure", channel="The destination channel")
@@ -453,7 +430,6 @@ async def setlogchannel(interaction: discord.Interaction, log_type: str, channel
     await interaction.response.send_message(
         f"✅ Updated **{log_type.replace('_', ' ').title()}** target to {channel.mention}.", ephemeral=True
     )
-
 
 @bot.tree.command(name="timeout", description="Timeout a member")
 @app_commands.describe(
@@ -516,7 +492,6 @@ async def timeout(
         await send_mod_log(interaction.guild, embed)
     except Exception as e:
         await interaction.response.send_message(f"❌ Failed to timeout member: {e}", ephemeral=True)
-
 
 @bot.tree.command(name="warn", description="Warn a member")
 @app_commands.describe(
@@ -615,7 +590,6 @@ async def warn(
     await interaction.response.send_message(embed=embed)
     await send_mod_log(interaction.guild, embed)
 
-
 @bot.tree.command(name="warnings", description="Check active warnings for a user")
 @app_commands.describe(user="The user or user ID to check")
 async def warnings(interaction: discord.Interaction, user: str):
@@ -630,7 +604,7 @@ async def warnings(interaction: discord.Interaction, user: str):
     embed = discord.Embed(
         title="📋 Warning Records",
         description=f"Active warnings for <@{user_id}>",
-        color=None,
+        color=0xFF0000,
         timestamp=datetime.now(timezone.utc)
     )
     embed.add_field(name="User ID", value=str(user_id), inline=False)
@@ -641,7 +615,6 @@ async def warnings(interaction: discord.Interaction, user: str):
             inline=False,
         )
     await interaction.response.send_message(embed=embed, ephemeral=True)
-
 
 @bot.tree.command(name="removewarn", description="Remove a specific warning index from a user")
 @app_commands.describe(user="The user or user ID", warn_index="The warning number to remove")
@@ -673,7 +646,6 @@ async def removewarn(interaction: discord.Interaction, user: str, warn_index: in
         )
     else:
         await interaction.response.send_message("❌ Invalid warning index.", ephemeral=True)
-
 
 @bot.tree.command(name="blacklist", description="Blacklist a member by user or user ID")
 @app_commands.describe(user="The member or user ID to blacklist", reason="Reason", category="Category")
@@ -707,7 +679,6 @@ async def blacklist(
         await interaction.response.send_message("You cannot blacklist this member due to having an equal or higher role then yours", ephemeral=True)
         return
 
-    # DESIGN FÖR BLACKLIST (USER BLACKLISTED RECORD)
     embed = discord.Embed(
         title="⛔ USER BLACKLISTED RECORD",
         description="A security enforcement action has been successfully processed.",
@@ -773,7 +744,6 @@ async def blacklist(
 
     await send_mod_log(guild, log_embed)
 
-
 @bot.tree.command(name="unblacklist", description="Remove a user from the blacklist")
 @app_commands.describe(user="User mention or User ID to unblacklist", reason="Reason")
 async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
@@ -804,88 +774,18 @@ async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
 
     guild = interaction.guild
     member = guild.get_member(target_id)
-
-    # DESIGN FÖR UNBLACKLIST (Member unblacklisted)
-    embed = discord.Embed(
-        title="✅ Member unblacklisted",
-        description="A user's server restrictions have been lifted and access has been restored.",
-        color=discord.Color.green(),
-        timestamp=datetime.now(timezone.utc)
-    )
-    embed.add_field(name="👤 Target User", value=f"<@{target_id}>\nID: `{target_id}`", inline=True)
-    embed.add_field(name="🛡️ Cleared By", value=interaction.user.mention, inline=True)
-    embed.add_field(name="📝 Reason", value=reason, inline=False)
-
-    view = UnblacklistConfirmView(interaction, target_id)
-    await interaction.response.send_message(embed=embed, view=view)
-    await view.wait()
-
-    if not view.value:
-        return
-
-    data = saved_data_db.pop(target_id_str)
-    save_data_file(DATA_FILE, saved_data_db)
-
-    if member:
-        blacklist_role = discord.utils.get(guild.roles, name="Blacklisted")
-        if blacklist_role:
-            await member.remove_roles(blacklist_role)
-        if data.get("roles"):
-            restored_roles = [guild.get_role(r_id) for r_id in data["roles"] if guild.get_role(r_id)]
-            if restored_roles:
-                await member.add_roles(*restored_roles)
-        try:
-            await member.edit(nick=data.get("old_nickname"))
-        except Exception:
-            pass
-
-    log_embed = discord.Embed(
-        title="✅ Member unblacklisted",
-        description="A user's server restrictions have been lifted and access has been restored.",
-        color=discord.Color.green(),
-        timestamp=datetime.now(timezone.utc)
-    )
-    log_embed.add_field(name="👤 Target User", value=f"<@{target_id}>\nID: `{target_id}`", inline=True)
-    log_embed.add_field(name="🛡️ Cleared By", value=interaction.user.mention, inline=True)
-    log_embed.add_field(name="📝 Reason", value=reason, inline=False)
-
-    target_channel = get_target_channel(guild, "《➥》unblacklist")
-    if target_channel:
-        await target_channel.send(embed=log_embed)
-    else:
-        await interaction.channel.send(embed=log_embed)
-
-    await send_mod_log(guild, log_embed)
-
-
-@bot.tree.command(name="viewblacklistinfo", description="View active blacklist details for a user")
-@app_commands.describe(user="The user or user ID to check")
-async def viewblacklistinfo(interaction: discord.Interaction, user: str):
-    if not has_custom_role_or_admin(interaction):
-        await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
-        return
-
-    clean_id = user.strip("<@!> ")
-    if not clean_id.isdigit():
-        await interaction.response.send_message("❌ Invalid user ID.", ephemeral=True)
-        return
-
-    target_id = int(clean_id)
-    data = saved_data_db.get(str(target_id))
-    if not data:
-        await interaction.response.send_message(f"❌ No active blacklist found for ID `{target_id}`.", ephemeral=True)
-        return
-
+    data = saved_data_db[target_id_str]
+    
     embed = discord.Embed(
         title="📋 Blacklist Info",
-        description=f"Details for <@{target_id}>",
+        description=f"Information for <@{target_id_str}>",
         color=0x000000,
         timestamp=datetime.now(timezone.utc)
     )
-    embed.add_field(name="User ID", value=str(target_id), inline=True)
+    embed.add_field(name="User ID", value=target_id_str, inline=True)
     embed.add_field(name="Category", value=data.get("category", "N/A"), inline=True)
     embed.add_field(name="Reason", value=data.get("reason", "N/A"), inline=False)
+    
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-
-bot.run("din_riktiga_token_här")
+bot.run("DIN_FAKTISKA_TOKEN")
