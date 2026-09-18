@@ -11,6 +11,7 @@ from discord.ext import commands, tasks
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
+intents.moderation = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -239,8 +240,88 @@ async def on_member_join(member: discord.Member):
                 if member_roles:
                     await member.remove_roles(*member_roles)
                 await member.add_roles(blacklist_role)
+
+                embed = discord.Embed(
+                    title="🚨 Blacklist Automatically Reapplied",
+                    description=f"{member.mention} rejoined while blacklisted and had the blacklist role re-applied.",
+                    color=0xFF0000,
+                    timestamp=datetime.now(timezone.utc)
+                )
+                embed.add_field(name="User ID", value=str(member.id), inline=False)
+                await send_mod_log(guild, embed)
             except Exception:
                 pass
+
+
+@bot.event
+async def on_member_update(before: discord.Member, after: discord.Member):
+    user_id_str = str(after.id)
+    guild = after.guild
+
+    # 1. Enforce Blacklist Role Persistence
+    if user_id_str in saved_data_db:
+        blacklist_role = discord.utils.get(guild.roles, name="Blacklisted")
+        if blacklist_role and blacklist_role in before.roles and blacklist_role not in after.roles:
+            try:
+                await after.add_roles(blacklist_role)
+                new_nick = f"Blacklisted [{after.name}]"
+                if len(new_nick) > 32:
+                    new_nick = f"Blacklisted [{after.name[:15]}]"
+                await after.edit(nick=new_nick)
+
+                embed = discord.Embed(
+                    title="🚨 Blacklist Automatically Reapplied",
+                    description=f"Attempted removal of the Blacklisted role from {after.mention} was automatically reverted.",
+                    color=0xFF0000,
+                    timestamp=datetime.now(timezone.utc)
+                )
+                embed.add_field(name="User ID", value=str(after.id), inline=False)
+                await send_mod_log(guild, embed)
+            except Exception:
+                pass
+
+    # 2. Check for Dangerous Permissions Granted
+    added_roles = [role for role in after.roles if role not in before.roles]
+    if added_roles:
+        dangerous_perms_map = {
+            "administrator": "Administrator",
+            "manage_guild": "Manage Guild",
+            "manage_roles": "Manage Roles",
+            "manage_channels": "Manage Channels",
+            "ban_members": "Ban Members",
+            "kick_members": "Kick Members",
+            "manage_webhooks": "Manage Webhooks"
+        }
+
+        for role in added_roles:
+            detected_perms = []
+            for perm_attr, display_name in dangerous_perms_map.items():
+                if getattr(role.permissions, perm_attr, False):
+                    detected_perms.append(display_name)
+
+            if detected_perms:
+                responsible_mod = "Unknown / System"
+                await asyncio.sleep(1) # Allow audit log entry to register
+                try:
+                    async for entry in guild.audit_logs(action=discord.AuditLogAction.member_role_update, limit=5):
+                        if entry.target.id == after.id and role in entry.after.roles:
+                            responsible_mod = entry.user.mention
+                            break
+                except Exception:
+                    pass
+
+                perms_formatted = "\n".join([f"• {p}" for p in detected_perms])
+                embed = discord.Embed(
+                    title="🚨 Dangerous Role Granted",
+                    description=f"{after.mention} was granted {role.mention}",
+                    color=0xFF0000,
+                    timestamp=datetime.now(timezone.utc)
+                )
+                embed.add_field(name="User ID", value=str(after.id), inline=False)
+                embed.add_field(name="Dangerous Permissions", value=perms_formatted, inline=False)
+                embed.add_field(name="Responsible Moderator", value=responsible_mod, inline=False)
+
+                await send_mod_log(guild, embed)
 
 
 # ==================== AUTOMATED MESSAGE LOGS ====================
@@ -492,7 +573,7 @@ async def warn(
     save_data_file(WARNS_FILE, warns_db)
 
     embed = discord.Embed(
-        title="⚠️ Member Warned",
+        title="🚨 Member Warned",
         description=f"<@{user_id}> has been warned",
         color=0xFF0000,
         timestamp=datetime.now(timezone.utc)
