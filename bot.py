@@ -888,4 +888,4 @@ async def viewblacklistinfo(interaction: discord.Interaction, user: str):
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-bot.run("DIN_FAKTISKA_TOKEN_HÄR")
+bot.run(os.getenv("TOKEN"))
