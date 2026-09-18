@@ -258,7 +258,6 @@ async def on_member_update(before: discord.Member, after: discord.Member):
     user_id_str = str(after.id)
     guild = after.guild
 
-    # 1. Enforce Blacklist Role Persistence
     if user_id_str in saved_data_db:
         blacklist_role = discord.utils.get(guild.roles, name="Blacklisted")
         if blacklist_role and blacklist_role in before.roles and blacklist_role not in after.roles:
@@ -280,7 +279,6 @@ async def on_member_update(before: discord.Member, after: discord.Member):
             except Exception:
                 pass
 
-    # 2. Check for Dangerous Permissions Granted
     added_roles = [role for role in after.roles if role not in before.roles]
     if added_roles:
         dangerous_perms_map = {
@@ -301,7 +299,7 @@ async def on_member_update(before: discord.Member, after: discord.Member):
 
             if detected_perms:
                 responsible_mod = "Unknown / System"
-                await asyncio.sleep(1) # Allow audit log entry to register
+                await asyncio.sleep(1)
                 try:
                     async for entry in guild.audit_logs(action=discord.AuditLogAction.member_role_update, limit=5):
                         if entry.target.id == after.id and role in entry.after.roles:
@@ -323,8 +321,6 @@ async def on_member_update(before: discord.Member, after: discord.Member):
 
                 await send_mod_log(guild, embed)
 
-
-# ==================== AUTOMATED MESSAGE LOGS ====================
 
 @bot.event
 async def on_message_delete(message: discord.Message):
@@ -397,8 +393,6 @@ async def on_member_unban(guild: discord.Guild, user: discord.User):
     await send_mod_log(guild, embed)
 
 
-# ==================== LOGGING CONFIG COMMAND ====================
-
 @bot.tree.command(name="setlogchannel", description="Set log channels for moderation or message events")
 @app_commands.describe(log_type="The type of logs to configure", channel="The destination channel")
 @app_commands.choices(
@@ -423,8 +417,6 @@ async def setlogchannel(interaction: discord.Interaction, log_type: str, channel
         f"✅ Updated **{log_type.replace('_', ' ').title()}** target to {channel.mention}.", ephemeral=True
     )
 
-
-# ==================== MODERATION COMMANDS ====================
 
 @bot.tree.command(name="timeout", description="Timeout a member")
 @app_commands.describe(
@@ -643,7 +635,7 @@ async def removewarn(interaction: discord.Interaction, user: str, warn_index: in
             ephemeral=True,
         )
     else:
-        await interaction.response.send_message(f"❌ Invalid warning index.", ephemeral=True)
+        await interaction.response.send_message("❌ Invalid warning index.", ephemeral=True)
 
 
 @bot.tree.command(name="blacklist", description="Blacklist a member by user or user ID")
@@ -816,7 +808,7 @@ async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
     log_embed.add_field(name="Responsible Moderator", value=interaction.user.mention, inline=True)
     log_embed.add_field(name="Reason", value=reason, inline=False)
 
-    target_channel = get_target_channel(guild, "《➥》unblacklist")
+   target_channel = get_target_channel(guild, "《➥》unblacklist")
     if target_channel:
         await target_channel.send(embed=log_embed)
     else:
@@ -829,53 +821,31 @@ async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
 @app_commands.describe(user="The user or user ID to check")
 async def viewblacklistinfo(interaction: discord.Interaction, user: str):
     if not has_custom_role_or_admin(interaction):
-        await interaction.response.send_message("❌ You do not have permission.", ephemeral=True)
+        await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
         return
 
     clean_id = user.strip("<@!> ")
     if not clean_id.isdigit():
-        await interaction.response.send_message("❌ Invalid user ID.", ephemeral=True)
-        return
-    user_id_str = str(clean_id)
-
-    if user_id_str not in saved_data_db:
-        await interaction.response.send_message(f"❌ User with ID `{clean_id}` is not currently blacklisted.", ephemeral=True)
+        await interaction.response.send_message("❌ Invalid user or user ID.", ephemeral=True)
         return
 
-    data = saved_data_db[user_id_str]
+    target_id_str = clean_id
+    if target_id_str not in saved_data_db:
+        await interaction.response.send_message("❌ No blacklist entry found for this user.", ephemeral=True)
+        return
 
+    data = saved_data_db[target_id_str]
     embed = discord.Embed(
-        title="ℹ️ Blacklist Information",
-        description=f"Record for <@{clean_id}>",
+        title="📋 Blacklist Info",
+        description=f"Information for <@{target_id_str}>",
         color=0x000000,
         timestamp=datetime.now(timezone.utc)
     )
-    embed.add_field(name="User ID", value=clean_id, inline=True)
+    embed.add_field(name="User ID", value=target_id_str, inline=True)
     embed.add_field(name="Category", value=data.get("category", "N/A"), inline=True)
-    embed.add_field(name="Reason", value=data.get("reason", "No reason provided"), inline=False)
+    embed.add_field(name="Reason", value=data.get("reason", "N/A"), inline=False)
+
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-@bot.tree.command(name="send", description="Send a custom message or announcement to a channel")
-@app_commands.describe(channel="Channel to send the message to", message="The message content")
-async def send(interaction: discord.Interaction, channel: discord.TextChannel, message: str):
-    if not has_custom_role_or_admin(interaction):
-        await interaction.response.send_message("❌ You do not have permission.", ephemeral=True)
-        return
-
-    try:
-        await channel.send(message)
-        await interaction.response.send_message(f"✅ Successfully sent message to {channel.mention}.", ephemeral=True)
-    except Exception as e:
-        await interaction.response.send_message(f"❌ Failed to send message: {e}", ephemeral=True)
-
-
-@bot.tree.command(name="giverank", description="Give or remove rank roles")
-async def giverank(interaction: discord.Interaction, user: discord.Member, action: str):
-    if not has_custom_role_or_admin(interaction):
-        await interaction.response.send_message("❌ You do not have permission.", ephemeral=True)
-        return
-    await interaction.response.send_message(f"✅ Done for {user.mention}.", ephemeral=True)
-
-
-bot.run("YOUR_BOT_TOKEN_HERE")
+bot.run(os.getenv("DISCORD_TOKEN"))
