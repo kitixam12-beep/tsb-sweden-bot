@@ -181,6 +181,41 @@ class UnblacklistConfirmView(discord.ui.View):
         except Exception:
             pass
 
+class UnblacklistConfirmViewModal(discord.ui.View):
+    def __init__(self, interaction: discord.Interaction, target_id: int, reason: str):
+        super().__init__(timeout=60)
+        self.orig_interaction = interaction
+        self.target_id = target_id
+        self.reason = reason
+        self.value = None
+
+    @discord.ui.button(label="Confirm Unblacklist", style=discord.ButtonStyle.green, emoji="✅")
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.orig_interaction.user:
+            await interaction.response.send_message("❌ Only the moderator who initiated this command can confirm it.", ephemeral=True)
+            return
+        await interaction.response.defer()
+        self.value = True
+        self.stop()
+        try:
+            await interaction.message.delete()
+        except Exception:
+            pass
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.red, emoji="❌")
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.orig_interaction.user:
+            await interaction.response.send_message("❌ Only the moderator who initiated this command can cancel it.", ephemeral=True)
+            return
+        self.value = False
+        self.stop()
+        try:
+            await interaction.response.edit_message(content="❌ Unblacklist action cancelled.", embed=None, view=None)
+            await asyncio.sleep(4)
+            await interaction.message.delete()
+        except Exception:
+            pass
+
 @bot.event
 async def on_ready():
     clean_expired_warns()
@@ -648,6 +683,31 @@ async def removewarn(interaction: discord.Interaction, user: str, warn_index: in
     else:
         await interaction.response.send_message("❌ Invalid warning index.", ephemeral=True)
 
+@bot.tree.command(name="giverank", description="Give a rank/role to a member")
+@app_commands.describe(member="The member to give the role to", role="The role to give")
+async def giverank(interaction: discord.Interaction, member: discord.Member, role: discord.Role):
+    if not has_custom_role_or_admin(interaction):
+        await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
+        return
+
+    if not check_hierarchy(interaction, member):
+        await interaction.response.send_message("❌ You cannot manage roles for this member due to role hierarchy.", ephemeral=True)
+        return
+
+    try:
+        await member.add_roles(role)
+        embed = discord.Embed(
+            title="✨ Role Granted",
+            description=f"Successfully gave {role.mention} to {member.mention}.",
+            color=0x00FF00,
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.add_field(name="Responsible Moderator", value=interaction.user.mention, inline=False)
+        await interaction.response.send_message(embed=embed)
+        await send_mod_log(interaction.guild, embed)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Failed to give role: {e}", ephemeral=True)
+
 @bot.tree.command(name="blacklist", description="Blacklist a member by user or user ID")
 @app_commands.describe(user="The member or user ID to blacklist", reason="Reason", category="Category")
 async def blacklist(
@@ -787,8 +847,8 @@ async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
     embed.add_field(name="Category", value=data.get("category", "N/A"), inline=True)
     embed.add_field(name="Reason", value=data.get("reason", "N/A"), inline=False)
     
-    view = UnblacklistConfirmView(interaction, target_id)
-    await interaction.response.send_message(embed=embed, view=view)
+    view = UnblacklistConfirmViewModal(interaction, target_id, reason)
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
     await view.wait()
 
     if not view.value:
@@ -799,24 +859,26 @@ async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
 
     if member:
         try:
-            old_nick = data.get("old_nickname", None)
-            await member.edit(nick=old_nick)
-            
-            role_ids = data.get("roles", [])
-            roles_to_add = [guild.get_role(r_id) for r_id in role_ids if guild.get_role(r_id)]
+            old_nick = data.get("old_nickname")
+            if old_nick:
+                await member.edit(nick=old_nick)
+            else:
+                await member.edit(nick=None)
             
             blacklist_role = discord.utils.get(guild.roles, name="Blacklisted")
             if blacklist_role and blacklist_role in member.roles:
                 await member.remove_roles(blacklist_role)
             
-            if roles_to_add:
-                await member.add_roles(*roles_to_add)
+            role_ids = data.get("roles", [])
+            roles_to_restore = [guild.get_role(r_id) for r_id in role_ids if guild.get_role(r_id)]
+            if roles_to_restore:
+                await member.add_roles(*roles_to_restore)
         except Exception:
             pass
 
     log_embed = discord.Embed(
         title="🔓 USER UNBLACKLISTED RECORD",
-        description="A security enforcement removal action has been successfully processed.",
+        description="A security unblacklist action has been successfully processed.",
         color=0x00FF00,
         timestamp=datetime.now(timezone.utc)
     )
@@ -832,5 +894,9 @@ async def unblacklist(interaction: discord.Interaction, user: str, reason: str):
         await interaction.channel.send(embed=log_embed)
 
     await send_mod_log(guild, log_embed)
+    try:
+        await interaction.followup.send(f"✅ Successfully unblacklisted <@{target_id}>.", ephemeral=True)
+    except Exception:
+        pass
 
-bot.run("DITT_TOKEN_HÄR")
+bot.run("DIN_BOT_TOKEN_HÄR")
